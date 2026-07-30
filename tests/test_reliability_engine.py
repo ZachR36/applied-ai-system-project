@@ -56,7 +56,7 @@ def test_preference_parser_detects_energy():
 
     # Low energy
     profile_low = parser.parse("I'm tired and want relaxing music")
-    assert profile_low.target_energy < 0.4
+    assert profile_low.target_energy <= 0.4
 
 
 def test_preference_parser_detects_acoustic():

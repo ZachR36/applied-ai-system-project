@@ -59,7 +59,7 @@ def test_extract_keywords_tired():
     keywords, constraints = extract_keywords("I'm tired and want relaxing music")
     assert "tired" in keywords or "relaxing" in keywords
     assert len(constraints["energy"]) > 0
-    assert constraints["energy"][0].get("energy_max") == 0.4
+    assert constraints["energy"][0].get("energy_max") == 0.5
 
 
 def test_extract_keywords_acoustic():

@@ -1,7 +1,7 @@
-from src.recommender import Song, UserProfile, Recommender
+from src.recommender import Song, UserProfile, recommend_songs, score_song
 
-def make_small_recommender() -> Recommender:
-    songs = [
+def make_test_songs():
+    return [
         Song(
             id=1,
             title="Test Pop Track",
@@ -27,7 +27,6 @@ def make_small_recommender() -> Recommender:
             acousticness=0.9,
         ),
     ]
-    return Recommender(songs)
 
 
 def test_recommend_returns_songs_sorted_by_score():
@@ -37,25 +36,26 @@ def test_recommend_returns_songs_sorted_by_score():
         target_energy=0.8,
         likes_acoustic=False,
     )
-    rec = make_small_recommender()
-    results = rec.recommend(user, k=2)
+    songs = make_test_songs()
+    results = recommend_songs(user, songs, k=2)
 
     assert len(results) == 2
-    # Starter expectation: the pop, happy, high energy song should score higher
-    assert results[0].genre == "pop"
-    assert results[0].mood == "happy"
+    # The pop, happy, high energy song should score higher
+    assert results[0][0].genre == "pop"
+    assert results[0][0].mood == "happy"
 
 
-def test_explain_recommendation_returns_non_empty_string():
+def test_score_song_returns_tuple():
     user = UserProfile(
         favorite_genre="pop",
         favorite_mood="happy",
         target_energy=0.8,
         likes_acoustic=False,
     )
-    rec = make_small_recommender()
-    song = rec.songs[0]
+    song = make_test_songs()[0]
 
-    explanation = rec.explain_recommendation(user, song)
-    assert isinstance(explanation, str)
-    assert explanation.strip() != ""
+    score, reasons = score_song(user, song)
+    assert isinstance(score, float)
+    assert isinstance(reasons, list)
+    assert len(reasons) > 0
+    assert 0.0 <= score <= 1.0

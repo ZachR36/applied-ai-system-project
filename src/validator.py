@@ -32,11 +32,11 @@ INTENT_KEYWORDS = {
     'pumped': {'energy_min': 0.75, 'category': 'energy'},
 
     'chill': {'energy_max': 0.5, 'category': 'energy'},
-    'relaxing': {'energy_max': 0.4, 'category': 'energy'},
+    'relaxing': {'energy_max': 0.5, 'category': 'energy'},
     'calm': {'energy_max': 0.5, 'category': 'energy'},
     'slow': {'energy_max': 0.45, 'category': 'energy'},
-    'tired': {'energy_max': 0.4, 'category': 'energy'},
-    'exhausted': {'energy_max': 0.3, 'category': 'energy'},
+    'tired': {'energy_max': 0.45, 'category': 'energy'},
+    'exhausted': {'energy_max': 0.45, 'category': 'energy'},
     'sleepy': {'energy_max': 0.3, 'category': 'energy'},
     'mellow': {'energy_max': 0.5, 'category': 'energy'},
 
@@ -57,6 +57,33 @@ INTENT_KEYWORDS = {
     'synth': {'likes_acoustic': False, 'category': 'acoustic'},
     'digital': {'likes_acoustic': False, 'category': 'acoustic'},
 }
+
+
+def _consolidate_constraints(constraints: Dict) -> Dict:
+    """
+    Consolidate multiple constraints to the strictest requirement.
+
+    If user says both "tired" and "exhausted", use the stricter energy_max.
+    If user says "upbeat" and "intense", use the stricter energy_min.
+    """
+    consolidated = {'energy': [], 'mood': [], 'acoustic': []}
+
+    # For energy: use the strictest (lowest max, highest min)
+    energy_constraints = constraints.get('energy', [])
+    if energy_constraints:
+        min_energy_max = min((c.get('energy_max', float('inf')) for c in energy_constraints), default=None)
+        max_energy_min = max((c.get('energy_min', 0) for c in energy_constraints), default=0)
+
+        if min_energy_max is not None and min_energy_max != float('inf'):
+            consolidated['energy'].append({'energy_max': min_energy_max, 'category': 'energy'})
+        if max_energy_min > 0:
+            consolidated['energy'].append({'energy_min': max_energy_min, 'category': 'energy'})
+
+    # For mood and acoustic: keep all (they're not typically conflicting)
+    consolidated['mood'] = constraints.get('mood', [])
+    consolidated['acoustic'] = constraints.get('acoustic', [])
+
+    return consolidated
 
 
 def extract_keywords(user_input: str) -> Tuple[List[str], Dict]:
@@ -114,6 +141,9 @@ def validate_recommendations(
             keywords_found=keywords,
         )
 
+    # Consolidate multiple constraints to strictest requirement
+    consolidated_constraints = _consolidate_constraints(constraints)
+
     reasons = []
     matches = 0
 
@@ -122,8 +152,8 @@ def validate_recommendations(
         song_matches = True
         song_feedback = []
 
-        # Check energy constraints
-        for constraint in constraints.get('energy', []):
+        # Check energy constraints (use consolidated strictest constraints)
+        for constraint in consolidated_constraints.get('energy', []):
             if 'energy_min' in constraint:
                 if song.energy < constraint['energy_min']:
                     song_matches = False

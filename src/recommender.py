@@ -40,25 +40,6 @@ EXAMPLE_USER = UserProfile(
     likes_acoustic=True
 )
 
-class Recommender:
-    """
-    OOP implementation of the recommendation logic.
-    Required by tests/test_recommender.py
-    """
-    def __init__(self, songs: List[Song]):
-        """Initialize recommender with a list of songs."""
-        self.songs = songs
-
-    def recommend(self, user: UserProfile, k: int = 5) -> List[Song]:
-        """Return the top k song recommendations for a user."""
-        # TODO: Implement recommendation logic
-        return self.songs[:k]
-
-    def explain_recommendation(self, user: UserProfile, song: Song) -> str:
-        """Generate a human-readable explanation for why a song was recommended."""
-        # TODO: Implement explanation logic
-        return "Explanation placeholder"
-
 def load_songs(csv_path: str) -> List[Song]:
     """
     Loads songs from a CSV file and converts them to Song objects.
