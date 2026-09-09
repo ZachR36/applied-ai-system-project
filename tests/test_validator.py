@@ -59,7 +59,7 @@ def test_extract_keywords_tired():
     keywords, constraints = extract_keywords("I'm tired and want relaxing music")
     assert "tired" in keywords or "relaxing" in keywords
     assert len(constraints["energy"]) > 0
-    assert constraints["energy"][0].get("energy_max") == 0.5
+    assert min(c["energy_max"] for c in constraints["energy"]) == 0.45
 
 
 def test_extract_keywords_acoustic():
@@ -198,9 +198,9 @@ def test_genre_extraction_handles_catalog_and_longest_phrases():
     for phrase, target in [('country', 'country'), ('hip hop', 'hip-hop'),
                            ('study', 'study'), ('indie pop', 'indie pop'), ('heavy metal', 'metal')]:
         _, constraints = extract_keywords(phrase)
-        assert {c['genre'] for c in constraints['genre']} == {target}
+        assert {v for c in constraints['genre'] for v in c['genre_any']} == {target}
     _, constraints = extract_keywords('acoustic jazz')
-    assert {c['genre'] for c in constraints['genre']} == {'jazz'}
+    assert {v for c in constraints['genre'] for v in c['genre_any']} == {'jazz'}
     assert constraints['acoustic']
 
 

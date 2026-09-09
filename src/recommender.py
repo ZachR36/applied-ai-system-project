@@ -1,6 +1,7 @@
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 import csv
+import math
 import os
 
 @dataclass
@@ -40,30 +41,51 @@ EXAMPLE_USER = UserProfile(
     likes_acoustic=True
 )
 
+def _csv_number(row, field, row_number):
+    """Parse a numeric CSV cell and report the record and expected domain."""
+    raw = row.get(field)
+    expected = (
+        "an integer" if field == "id" else
+        "a finite number greater than 0" if field == "tempo_bpm" else
+        "a finite number between 0 and 1"
+    )
+    message = f"CSV row {row_number}: {field}={raw!r}; expected {expected}."
+    try:
+        value = int(raw) if field == "id" else float(raw)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError(message) from None
+    if field != "id":
+        valid = math.isfinite(value) and (
+            value > 0 if field == "tempo_bpm" else 0 <= value <= 1
+        )
+        if not valid:
+            raise ValueError(message)
+    return value
+
+
 def load_songs(csv_path: str) -> List[Song]:
-    """
-    Loads songs from a CSV file and converts them to Song objects.
-    Required by src/main.py
+    """Load a catalog, rejecting invalid numeric cells without returning partial data.
+
+    Row numbers count CSV records, including the header as row 1.
     """
     print(f"Loading songs from {csv_path}...")
     songs = []
+    numeric_fields = ("id", "energy", "tempo_bpm", "valence", "danceability", "acousticness")
 
-    with open(csv_path, 'r') as f:
+    with open(csv_path, 'r', newline='') as f:
         reader = csv.DictReader(f)
-        for row in reader:
-            song = Song(
-                id=int(row['id']),
+        missing = [field for field in numeric_fields if field not in (reader.fieldnames or [])]
+        if missing:
+            raise ValueError(f"CSV row 1: missing required numeric column(s): {', '.join(missing)}.")
+        for row_number, row in enumerate(reader, start=2):
+            values = {field: _csv_number(row, field, row_number) for field in numeric_fields}
+            songs.append(Song(
                 title=row['title'],
                 artist=row['artist'],
                 genre=row['genre'],
                 mood=row['mood'],
-                energy=float(row['energy']),
-                tempo_bpm=float(row['tempo_bpm']),
-                valence=float(row['valence']),
-                danceability=float(row['danceability']),
-                acousticness=float(row['acousticness'])
-            )
-            songs.append(song)
+                **values,
+            ))
 
     print(f"Loaded {len(songs)} songs.")
     return songs

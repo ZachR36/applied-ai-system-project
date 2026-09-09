@@ -12,6 +12,7 @@ The main recommender now uses a reliability engine that:
 from src.recommender import load_songs, UserProfile, EXAMPLE_USER
 from src.reliability_engine import ReliabilityEngine
 from src.validator import format_validation_summary
+from src.preference_ui import review_preferences
 
 
 # Define distinct user preference profiles for testing
@@ -82,8 +83,12 @@ def display_recommendations_with_reliability(
 
     # Create reliability engine and process request
     engine = ReliabilityEngine(songs)
+    confirmed = review_preferences(engine.prepare_request(user_request))
+    if confirmed is None:
+        return
     result = engine.process_user_request(
         user_request,
+        confirmed_preferences=confirmed,
         base_profile=None,
         k=k,
         min_match_rate=0.7,
@@ -104,7 +109,7 @@ def display_recommendations_with_reliability(
 
     print("\n" + format_validation_summary(result.validation))
 
-    # Display low-confidence explanation if applicable
+    # Display catalog coverage explanation below the configured match-rate threshold
     if result.best_attempt_used and result.confidence_low_reason:
         print("\n⚠️  NOTE ON THESE RECOMMENDATIONS:")
         print("=" * 70)
@@ -147,14 +152,12 @@ def interactive_mode(songs) -> None:
             print("   ❌ Please describe what you want to listen to (e.g., 'happy pop music')\n")
             continue
 
-        # Check if input is too short or just nonsense
-        if len(user_input.split()) < 2:
-            print("   ❌ Please be more specific about what kind of music you want\n")
-            continue
-
         try:
             print()
-            result = engine.process_user_request(user_input, k=5, min_match_rate=0.7)
+            confirmed = review_preferences(engine.prepare_request(user_input))
+            if confirmed is None:
+                continue
+            result = engine.process_user_request(user_input, k=5, min_match_rate=0.7, confirmed_preferences=confirmed)
 
             # Simplified output for interactive mode
             print("\n📝 Your Request: " + user_input)
@@ -169,11 +172,13 @@ def interactive_mode(songs) -> None:
                 print()
 
             print(format_validation_summary(result.validation))
+            if result.confidence_low_reason:
+                print(result.confidence_low_reason)
             print("=" * 70)
             print()
         except Exception as e:
             print(f"   ❌ Error processing request: {str(e)}")
-            print("   Please try rephrasing your request.\n")
+            print("   You can submit the request again and use the numbered preference editors.\n")
 
 
 def main() -> None:

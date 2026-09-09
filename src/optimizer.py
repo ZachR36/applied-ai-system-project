@@ -67,6 +67,7 @@ class WeightOptimizer:
         user_input: str,
         current_weights: Dict[str, float],
         match_rate: float,
+        constraints: Dict = None,
     ) -> Dict[str, float]:
         """
         Suggest new weights based on validation results and intent.
@@ -79,7 +80,8 @@ class WeightOptimizer:
         Returns:
             Suggested new weights (normalized to sum to 1.0)
         """
-        keywords, constraints = extract_keywords(user_input)
+        if constraints is None:
+            _, constraints = extract_keywords(user_input)
         new_weights = current_weights.copy()
 
         # If energy constraints exist and match rate is low, boost energy weight

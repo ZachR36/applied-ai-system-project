@@ -14,8 +14,9 @@ import os
 from src.recommender import Song, UserProfile, recommend_songs, score_song
 from src.validator import (validate_recommendations, ValidationResult, extract_keywords,
                            evaluate_song, rank_by_preferences, GENRE_KEYWORDS, MOOD_KEYWORDS,
-                           format_validation_summary)
+                           format_validation_summary, is_excluded)
 from src.optimizer import WeightOptimizer
+from src.preferences import parse_preferences, ConfirmedPreferences, PreferenceReviewRequired
 
 
 @dataclass
@@ -41,91 +42,12 @@ class PlaylistResult:
 
 
 class PreferenceParser:
-    """Parses natural language user input into preference adjustments."""
-
-    # Shared explicit vocabulary keeps parsing and validation aligned.
+    """Compatibility helper: derive a profile from the shared phrase parser."""
     MOOD_KEYWORDS = MOOD_KEYWORDS
     GENRE_KEYWORDS = GENRE_KEYWORDS
 
     def parse(self, user_input: str, default_profile: UserProfile = None) -> UserProfile:
-        """
-        Parse natural language input into a UserProfile with adjusted preferences.
-
-        Args:
-            user_input: User's natural language description
-            default_profile: Base profile to modify (creates new one if None)
-
-        Returns:
-            UserProfile with preferences adjusted based on user input
-        """
-        user_input_lower = user_input.lower()
-
-        # Use default profile or create a neutral one
-        if default_profile:
-            genre = default_profile.favorite_genre
-            mood = default_profile.favorite_mood
-            energy = default_profile.target_energy
-            acoustic = default_profile.likes_acoustic
-        else:
-            genre = 'pop'
-            mood = 'happy'
-            energy = 0.5
-            acoustic = False
-
-        # Extract mood from input
-        detected_mood = self._detect_mood(user_input_lower)
-        if detected_mood:
-            mood = detected_mood
-
-        # Extract genre from input
-        detected_genre = self._detect_genre(user_input_lower)
-        if detected_genre:
-            genre = detected_genre
-
-        # Extract energy level
-        detected_energy = self._detect_energy(user_input_lower)
-        if detected_energy is not None:
-            energy = detected_energy
-
-        # Extract acoustic preference
-        if 'acoustic' in user_input_lower or 'unplugged' in user_input_lower:
-            acoustic = True
-        elif 'electronic' in user_input_lower or 'synth' in user_input_lower or 'digital' in user_input_lower:
-            acoustic = False
-
-        return UserProfile(
-            favorite_genre=genre,
-            favorite_mood=mood,
-            target_energy=energy,
-            likes_acoustic=acoustic,
-        )
-
-    def _detect_mood(self, user_input_lower: str) -> Optional[str]:
-        _, constraints = extract_keywords(user_input_lower)
-        return constraints['mood'][0]['mood'] if constraints['mood'] else None
-
-    def _detect_genre(self, user_input_lower: str) -> Optional[str]:
-        _, constraints = extract_keywords(user_input_lower)
-        return constraints['genre'][0]['genre'] if constraints['genre'] else None
-
-    def _detect_energy(self, user_input_lower: str) -> Optional[float]:
-        """Extract energy level from user input."""
-        # High energy indicators
-        if any(word in user_input_lower for word in ['upbeat', 'energetic', 'intense', 'fast', 'pumped', 'workout', 'gym']):
-            return 0.80
-        # Very low energy (sleepy)
-        if 'sleepy' in user_input_lower:
-            return 0.25
-        # Low energy indicators (tired, exhausted, etc.)
-        if any(word in user_input_lower for word in ['tired', 'exhausted', 'chill', 'relaxing', 'calm', 'slow']):
-            return 0.40
-        # Medium-high
-        if any(word in user_input_lower for word in ['active', 'lively', 'bouncy']):
-            return 0.65
-        # Medium-low
-        if any(word in user_input_lower for word in ['mellow', 'peaceful', 'gentle']):
-            return 0.40
-        return None
+        return parse_preferences(user_input, default_profile).similarity_profile()
 
 
 class ReliabilityEngine:
@@ -137,20 +59,50 @@ class ReliabilityEngine:
         self.optimizer = WeightOptimizer()
 
     def _diagnose_low_confidence(
-        self, user_input: str, recommendations: List[Tuple[Song, float, List[str]]], validation: ValidationResult
+        self, user_input: str, recommendations: List[Tuple[Song, float, List[str]]],
+        validation: ValidationResult, requested_count: Optional[int] = None, constraints: Optional[Dict] = None,
     ) -> str:
-        """Use the same predicate as ranking and validation for catalog diagnostics."""
-        _, constraints = extract_keywords(user_input)
-        matching = sum(evaluate_song(song, constraints).complete for song in self.songs)
+        """Explain catalog coverage without inferring contradictory preferences.
+
+        Count complete, partial, and zero-preference matches using exactly the
+        same predicate as ranking. Requested count distinguishes catalog scarcity
+        from the number of results actually returned.
+        """
         if not self.songs:
             return "The catalog is empty; no recommendations are available."
-        return (
-            f"{matching} of {len(self.songs)} catalog songs satisfy all recognized requested preferences. "
-            f"Returning {validation.total_matches} complete matches and "
-            f"{validation.total_songs - validation.total_matches} partial matches. "
-            "Partial matches are ordered by preferences satisfied, then similarity; "
-            "see each song's matched and missed preferences."
-        )
+        if not validation.evaluated:
+            return "Not evaluated—no supported preferences recognized."
+        if constraints is None:
+            _, constraints = extract_keywords(user_input)
+        matching = sum(evaluate_song(song, constraints).complete for song in self.songs)
+        requested = len(recommendations) if requested_count is None else requested_count
+        coverage = f"{matching} of {len(self.songs)} catalog songs satisfy all recognized requested preferences. "
+        if matching == 0:
+            explanation = "No complete matches are available in this catalog. "
+        elif matching < requested:
+            explanation = f"Too few complete matches are available to fill the requested {requested} recommendations. "
+        else:
+            explanation = f"The catalog has enough complete matches for the requested {requested} recommendations. "
+
+        checks = [evaluate_song(song, constraints) for song, _, _ in recommendations]
+        complete = sum(check.complete for check in checks)
+        partial = sum(not check.complete and check.matched_count > 0 for check in checks)
+        unmatched = sum(check.matched_count == 0 for check in checks)
+        returned = f"Returning {len(recommendations)} of {requested} requested recommendations. "
+        returned += f"Complete matches: {complete}; partial matches: {partial}"
+        if unmatched:
+            returned += f"; alternatives matching none of the requested preferences: {unmatched}"
+        returned += "."
+        if partial or unmatched:
+            returned += (" Alternatives are ordered by preferences satisfied, then similarity. "
+                         "See each song's matched and missed preferences to assess the compromises.")
+        excluded = sum(is_excluded(song, constraints) for song in self.songs)
+        exclusion_note = f"{excluded} catalog songs were omitted because of your explicit exclusions. " if excluded else ""
+        return coverage + exclusion_note + explanation + returned
+
+    def prepare_request(self, user_input: str, base_profile: UserProfile = None):
+        """Build an editable draft without scoring any songs."""
+        return parse_preferences(user_input, base_profile)
 
     def process_user_request(
         self,
@@ -160,8 +112,11 @@ class ReliabilityEngine:
         min_match_rate: float = 0.7,
         min_acceptable_confidence: float = 0.4,
         max_iterations: int = 3,
+        confirmed_preferences: Optional[ConfirmedPreferences] = None,
     ) -> PlaylistResult:
-        """Rank all songs by explicit preference coverage, then similarity.
+        """Score only an explicitly confirmed snapshot, never raw text alone.
+
+        Rank eligible songs by preference coverage, then similarity.
 
         Retain every attempt. Compare rounds by complete matches, total boxes
         satisfied, then default-weight similarity on a common scoring scale.
@@ -170,22 +125,30 @@ class ReliabilityEngine:
         requests return profile-based suggestions without validation retries.
         Parser defaults only influence similarity tie-breaks.
         """
-        keywords, constraints = extract_keywords(user_input)
-        profile = self.parser.parse(user_input if any(constraints.values()) else "", base_profile)
+        if confirmed_preferences is None:
+            raise PreferenceReviewRequired(self.prepare_request(user_input, base_profile))
+        if not isinstance(confirmed_preferences, ConfirmedPreferences) or confirmed_preferences.request != user_input:
+            raise ValueError('Confirmation must belong to this request.')
+        constraints = confirmed_preferences.constraints
+        profile = confirmed_preferences.profile
+        keywords = [category for category, checks in constraints.items() if checks]
+        eligible_songs = [song for song in self.songs if not is_excluded(song, constraints)]
         current_weights = self.optimizer.DEFAULT_WEIGHTS.copy()
         decision_log = [
             f"User Input: {user_input!r}",
             f"Parsing: genre={profile.favorite_genre}, mood={profile.favorite_mood}, "
             f"energy={profile.target_energy:.2f}, acoustic={profile.likes_acoustic}",
             "Validating explicit preferences only; similarity defaults are not requirements.",
-            f"Detected conflicts: {', '.join(self.optimizer.detect_conflicts(user_input)) or 'None'}",
+            f"Preferences explicitly confirmed; {len(self.songs) - len(eligible_songs)} songs excluded.",
+            f"Confirmed constraints: {constraints}",
+            f"Explicitly omitted wording: {list(confirmed_preferences.omitted_text)}",
         ]
         attempts = []
         optimization_steps = []
 
         def evaluate_attempt(iteration, weights):
             # Do not truncate by similarity before checking preference coverage.
-            scored = recommend_songs(profile, self.songs, k=len(self.songs), weights=weights)
+            scored = recommend_songs(profile, eligible_songs, k=len(eligible_songs), weights=weights)
             recommendations = rank_by_preferences(scored, constraints, k)
             validation = validate_recommendations(user_input, recommendations, keywords, constraints)
             # Scores under different weights are not directly comparable. Use
@@ -212,7 +175,7 @@ class ReliabilityEngine:
         if current['evaluated'] and current['match_rate'] < min_match_rate:
             for iteration in range(1, max_iterations + 1):
                 current_weights = self.optimizer.suggest_weight_adjustments(
-                    user_input, current_weights, current['match_rate']
+                    user_input, current_weights, current['match_rate'], constraints=constraints
                 )
                 current = evaluate_attempt(iteration, current_weights)
                 optimization_steps.append(deepcopy({
@@ -230,7 +193,7 @@ class ReliabilityEngine:
         match_rate = validation.match_rate
         low_match_rate = validation.evaluated and match_rate < min_acceptable_confidence
         best_attempt_used = best['iteration'] != current['iteration'] or low_match_rate
-        reason = self._diagnose_low_confidence(user_input, recommendations, validation) if low_match_rate else None
+        reason = self._diagnose_low_confidence(user_input, recommendations, validation, requested_count=k, constraints=constraints) if low_match_rate else None
         decision_log.append(f"Selected round {best['iteration']} of {len(attempts)} recorded attempts.")
         decision_log.append(format_validation_summary(validation))
         if reason:

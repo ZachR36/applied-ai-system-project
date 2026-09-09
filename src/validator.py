@@ -41,75 +41,7 @@ class ValidationResult:
         return self.match_rate is not None
 
 
-# Acoustic/unplugged describes a feature, not a mandatory genre: acoustic jazz
-# can satisfy both jazz and acousticness without being tagged "acoustic".
-GENRE_KEYWORDS = {
-    'pop': ['pop', 'mainstream'],
-    'indie pop': ['indie pop', 'indie-pop'],
-    'lofi': ['lofi', 'lo-fi', 'chill hop'],
-    'rock': ['rock', 'hard rock'],
-    'metal': ['metal', 'heavy metal'],
-    'jazz': ['jazz', 'smooth jazz'],
-    'electronic': ['electronic', 'edm', 'synth'],
-    'classical': ['classical', 'orchestral'],
-    'country': ['country'],
-    'hip-hop': ['hip-hop', 'hip hop', 'rap'],
-    'study': ['study'],
-}
-MOOD_KEYWORDS = {
-    'happy': ['happy', 'cheerful', 'joyful', 'upbeat'],
-    'chill': ['chill', 'relaxing', 'relaxed', 'calm', 'mellow', 'peaceful', 'gentle'],
-    'aggressive': ['aggressive', 'intense', 'angry'],
-    'melancholic': ['sad', 'melancholic', 'depressed'],
-    'focused': ['focused', 'concentrating', 'productive'],
-    'energetic': ['energetic', 'pumped', 'excited', 'active', 'lively', 'bouncy'],
-    'playful': ['playful'],
-}
-INTENT_KEYWORDS = {
-    # Energy level
-    'upbeat': {'energy_min': 0.7, 'category': 'energy'},
-    'energetic': {'energy_min': 0.7, 'category': 'energy'},
-    'high energy': {'energy_min': 0.7, 'category': 'energy'},
-    'intense': {'energy_min': 0.75, 'category': 'energy'},
-    'fast': {'energy_min': 0.7, 'category': 'energy'},
-    'pumped': {'energy_min': 0.75, 'category': 'energy'},
-
-    'chill': {'energy_max': 0.5, 'category': 'energy'},
-    'relaxing': {'energy_max': 0.5, 'category': 'energy'},
-    'calm': {'energy_max': 0.5, 'category': 'energy'},
-    'slow': {'energy_max': 0.45, 'category': 'energy'},
-    'tired': {'energy_max': 0.45, 'category': 'energy'},
-    'exhausted': {'energy_max': 0.45, 'category': 'energy'},
-    'sleepy': {'energy_max': 0.3, 'category': 'energy'},
-    'mellow': {'energy_max': 0.5, 'category': 'energy'},
-
-    # Mood
-    'happy': {'mood': 'happy', 'category': 'mood'},
-    'cheerful': {'mood': 'happy', 'category': 'mood'},
-    'joyful': {'mood': 'happy', 'category': 'mood'},
-    'sad': {'mood': 'melancholic', 'category': 'mood'},
-    'melancholic': {'mood': 'melancholic', 'category': 'mood'},
-    'aggressive': {'mood': 'aggressive', 'category': 'mood'},
-    'intense mood': {'mood': 'aggressive', 'category': 'mood'},
-
-    # Acoustic preference
-    'acoustic': {'likes_acoustic': True, 'category': 'acoustic'},
-    'unplugged': {'likes_acoustic': True, 'category': 'acoustic'},
-    'natural': {'likes_acoustic': True, 'category': 'acoustic'},
-    'electronic': {'likes_acoustic': False, 'category': 'acoustic'},
-    'synth': {'likes_acoustic': False, 'category': 'acoustic'},
-    'digital': {'likes_acoustic': False, 'category': 'acoustic'},
-}
-
-# Include energy vocabulary already supported by the preference parser.
-for word in ['workout', 'gym']:
-    INTENT_KEYWORDS[word] = {'energy_min': .7, 'category': 'energy'}
-for word in ['low energy', 'low-energy']:
-    INTENT_KEYWORDS[word] = {'energy_max': .45, 'category': 'energy'}
-for word in ['peaceful', 'gentle']:
-    INTENT_KEYWORDS[word] = {'energy_max': .5, 'category': 'energy'}
-for word in ['active', 'lively', 'bouncy']:
-    INTENT_KEYWORDS[word] = {'energy_min': .6, 'category': 'energy'}
+from src.preferences import GENRE_KEYWORDS, MOOD_KEYWORDS, INTENT_KEYWORDS, parse_preferences
 
 
 def _consolidate_constraints(constraints: Dict) -> Dict:
@@ -129,48 +61,22 @@ def _consolidate_constraints(constraints: Dict) -> Dict:
     return result
 
 
-def _occurrences(text: str, phrase: str):
-    return re.finditer(r'(?<!\w)' + re.escape(phrase) + r'(?!\w)', text)
-
-
 def extract_keywords(user_input: str) -> Tuple[List[str], Dict]:
-    """Extract recognized, explicitly stated preferences; never add defaults.
+    """Low-level extraction; callers must review parse issues before scoring."""
+    draft = parse_preferences(user_input)
+    return draft.keywords, draft.constraints
 
-    Negation and arbitrary natural-language reasoning remain unsupported.
-    Longest genre phrases win overlaps ("indie pop" is not also "pop").
-    """
-    text = user_input.lower()
-    constraints = {key: [] for key in ['genre', 'mood', 'energy', 'acoustic']}
-    keywords = []
-    occupied = set()
-    genres = sorted(((word, genre) for genre, words in GENRE_KEYWORDS.items()
-                     for word in words), key=lambda pair: -len(pair[0]))
-    for word, genre in genres:
-        for match in _occurrences(text, word):
-            span = set(range(*match.span()))
-            if span & occupied:
-                continue
-            occupied.update(span)
-            constraints['genre'].append({'genre': genre, 'category': 'genre'})
-            if word not in keywords:
-                keywords.append(word)
-    # Avoid interpreting the "chill" inside the genre alias "chill hop" as mood.
-    mood_text = ''.join(' ' if i in occupied else char for i, char in enumerate(text))
-    for mood, words in MOOD_KEYWORDS.items():
-        for word in words:
-            if next(_occurrences(mood_text, word), None):
-                constraints['mood'].append({'mood': mood, 'category': 'mood'})
-                if word not in keywords:
-                    keywords.append(word)
-    for word, constraint in INTENT_KEYWORDS.items():
-        if constraint['category'] == 'mood':
-            continue
-        search_text = mood_text if constraint['category'] == 'energy' else text
-        if next(_occurrences(search_text, word), None):
-            constraints[constraint['category']].append(constraint.copy())
-            if word not in keywords:
-                keywords.append(word)
-    return keywords, constraints
+
+def is_excluded(song: Song, constraints: Dict) -> bool:
+    """Explicit exclusions are never relaxed to fill a playlist."""
+    for category in ['genre', 'mood']:
+        actual = getattr(song, category).lower().replace('indie-pop', 'indie pop')
+        for check in constraints.get(category, []):
+            for excluded in check.get(f'{category}_not', []):
+                if actual == excluded or (category == 'mood' and _similar_mood(actual, excluded)):
+                    return True
+    return any(check.get('hard') and (song.acousticness > .6) != check['likes_acoustic']
+               for check in constraints.get('acoustic', []))
 
 
 def evaluate_song(song: Song, constraints: Dict) -> SongMatch:
@@ -180,13 +86,19 @@ def evaluate_song(song: Song, constraints: Dict) -> SongMatch:
     for category, checks in constraints.items():
         if not checks:
             continue
-        if category == 'genre':
-            actual = song.genre.lower().replace('indie-pop', 'indie pop')
-            passed = all(actual == c['genre'] for c in checks)
-            detail = f"Genre {song.genre}; requested: {', '.join(c['genre'] for c in checks)}"
-        elif category == 'mood':
-            passed = all(song.mood.lower() == c['mood'] or _similar_mood(song.mood, c['mood']) for c in checks)
-            detail = f"Mood {song.mood}; requested: {', '.join(c['mood'] for c in checks)} (related moods allowed)"
+        if category in ['genre', 'mood']:
+            actual = getattr(song, category).lower().replace('indie-pop', 'indie pop')
+            def matches(target):
+                return actual == target or (category == 'mood' and _similar_mood(actual, target))
+            passed = True
+            labels = []
+            for check in checks:
+                allowed = check.get(f'{category}_any', [check[category]] if category in check else [])
+                excluded = check.get(f'{category}_not', [])
+                passed = passed and (not allowed or any(matches(v) for v in allowed)) and not any(matches(v) for v in excluded)
+                labels.append(f"allowed: {' OR '.join(allowed) or 'any'}; excluded: {', '.join(excluded) or 'none'}")
+            detail = f"{category.title()} {actual}; " + '; '.join(labels)
+            if category == 'mood': detail += ' (related moods allowed)'
         elif category == 'energy':
             passed = all(song.energy >= c.get('energy_min', 0.) and song.energy <= c.get('energy_max', 1.) for c in checks)
             bounds = [f">= {c['energy_min']}" if 'energy_min' in c else f"<= {c['energy_max']}" for c in checks]
