@@ -1,6 +1,6 @@
 """Evaluate explicit preferences independently of similarity scores."""
 
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 from dataclasses import dataclass, field
 import re
 from src.recommender import Song, _similar_mood
@@ -23,18 +23,22 @@ class SongMatch:
 
     @property
     def complete(self) -> bool:
-        return not self.missed_preferences
+        return self.total_preferences > 0 and not self.missed_preferences
 
 
 @dataclass
 class ValidationResult:
-    match_rate: float  # Fraction of returned songs satisfying every explicit preference.
+    match_rate: Optional[float]  # None when no supported preferences were recognized; otherwise fraction of returned songs satisfying every explicit preference.
     total_matches: int
     total_songs: int
     reasons: List[str]
     keywords_found: List[str]
     song_matches: List[SongMatch] = field(default_factory=list)
-    preference_coverage: float = 0.0  # Fraction of requested boxes satisfied across results.
+    preference_coverage: Optional[float] = None  # None when unevaluated.
+
+    @property
+    def evaluated(self) -> bool:
+        return self.match_rate is not None
 
 
 # Acoustic/unplugged describes a feature, not a mandatory genre: acoustic jazz
@@ -207,6 +211,7 @@ def validate_recommendations(user_input: str, recommendations: List[Tuple],
                              keywords: List[str] = None, constraints: Dict = None) -> ValidationResult:
     if keywords is None or constraints is None:
         keywords, constraints = extract_keywords(user_input)
+    evaluated = any(_consolidate_constraints(constraints).values())
     checks = [evaluate_song(song, constraints) for song, _, _ in recommendations]
     total = len(checks)
     complete = sum(check.complete for check in checks)
@@ -219,15 +224,24 @@ def validate_recommendations(user_input: str, recommendations: List[Tuple],
             reasons.append(f"{'✓' if check.complete else '✗'} {song.title}: "
                            f"{check.matched_count}/{check.total_preferences} preferences; " + '; '.join(check.details))
     return ValidationResult(
-        match_rate=complete / total if total else 0., total_matches=complete,
+        match_rate=(complete / total if total else 0.) if evaluated else None, total_matches=complete,
         total_songs=total, reasons=reasons, keywords_found=keywords,
         song_matches=checks,
-        preference_coverage=sum(c.matched_count for c in checks) / boxes if boxes else (1. if total else 0.),
+        preference_coverage=(sum(c.matched_count for c in checks) / boxes if boxes else 0.) if evaluated else None,
+    )
+
+
+def format_validation_summary(validation: ValidationResult) -> str:
+    """Shared user-facing metrics; never imply a satisfaction probability."""
+    if not validation.evaluated:
+        return ("Not evaluated—no supported preferences recognized.\n"
+                "Unvalidated suggestions based on the default or supplied profile.")
+    return (
+        f"Complete-match rate: {validation.match_rate:.1%} "
+        f"({validation.total_matches} of {validation.total_songs} songs match all recognized preferences).\n"
+        f"Preference coverage: {validation.preference_coverage:.1%} of requested preferences satisfied."
     )
 
 
 def log_validation(validation: ValidationResult) -> str:
-    return '\n'.join([
-        f"Complete matches: {validation.total_matches}/{validation.total_songs} ({validation.match_rate:.1%})",
-        f"Preference coverage: {validation.preference_coverage:.1%}", *validation.reasons,
-    ])
+    return '\n'.join([format_validation_summary(validation), *validation.reasons])

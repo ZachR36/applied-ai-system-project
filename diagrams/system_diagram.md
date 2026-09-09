@@ -12,12 +12,12 @@ flowchart TD
     E --> F
     F --> G[Rank by satisfied boxes then similarity]
     G --> H[Record top-k attempt and validation]
-    H --> I{Below complete-match target and retries remain?}
+    H --> I{Evaluated, below target, and retries remain?}
     I -->|Yes| J[Adjust weights]
     J --> E
     I -->|No| K[Compare all recorded attempts]
     K --> L[Best result and matched/missed checklist]
-    L --> M[Low-confidence diagnostics using the same checks]
+    L --> M[Low-match-rate diagnostics using the same checks]
 ```
 
 ## Component boundaries
@@ -42,8 +42,9 @@ flowchart TD
 - `attempt_history` includes round zero and every retry, with separate snapshots of recommendations, weights, validation, and quality.
 - Compare rounds by complete-match count, total matched boxes, then total similarity under fixed default weights. Exact ties favor the earlier round.
 - `selected_iteration` identifies the returned snapshot. `best_attempt_used` is true if an earlier round was retained or the selected result is below the diagnostic threshold.
-- `confidence` remains an alias for complete-match rate. `preference_coverage` reports partial fulfillment separately.
-- Default retry target: 0.70; retry limit: three; diagnostic threshold: strictly below 0.40. Best-attempt selection applies at every confidence level.
+- `confidence` remains a temporary API alias for complete-match rate; all user-facing output labels the metric “Complete-match rate.” `preference_coverage` reports partial fulfillment separately.
+- With no recognized constraints, both metrics and the compatibility alias are `None`, `validation.evaluated` is false, and the single recorded attempt has `evaluated=False` and `quality=None`. The system returns labeled unvalidated profile-based suggestions and skips retries and low-match-rate diagnostics.
+- Default retry target: 0.70; retry limit: three; diagnostic threshold: strictly below 0.40. Best-attempt selection applies at every evaluated match rate.
 - Full-catalog preference ranking already maximizes available matches. Retries only change similarity tie-breaks; they cannot create missing content.
 
 ## Verification

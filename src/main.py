@@ -11,6 +11,7 @@ The main recommender now uses a reliability engine that:
 
 from src.recommender import load_songs, UserProfile, EXAMPLE_USER
 from src.reliability_engine import ReliabilityEngine
+from src.validator import format_validation_summary
 
 
 # Define distinct user preference profiles for testing
@@ -101,8 +102,7 @@ def display_recommendations_with_reliability(
     for reason in result.validation.reasons:
         print(f"  {reason}")
 
-    print(f"\n✨ Final Confidence: {result.confidence:.1%}")
-    print(f"   (How confident the system is that these match your request)")
+    print("\n" + format_validation_summary(result.validation))
 
     # Display low-confidence explanation if applicable
     if result.best_attempt_used and result.confidence_low_reason:
@@ -116,7 +116,7 @@ def display_recommendations_with_reliability(
     for rank, (song, score, reasons) in enumerate(result.recommendations, 1):
         print(f"\n{rank}. {song.title} by {song.artist}")
         print(f"   Genre: {song.genre} | Mood: {song.mood} | Energy: {song.energy:.2f}")
-        print(f"   ⭐ Score: {score:.3f} / 1.000")
+        print(f"   Similarity score: {score:.3f} / 1.000")
         print(f"   Why this song:")
         for reason in reasons:
             print(f"     • {reason}")
@@ -164,11 +164,11 @@ def interactive_mode(songs) -> None:
             for rank, (song, score, reasons) in enumerate(result.recommendations, 1):
                 print(f"{rank}. {song.title} by {song.artist}")
                 print(f"   Genre: {song.genre} | Mood: {song.mood} | Energy: {song.energy:.2f}")
-                print(f"   ⭐ Score: {score:.3f} / 1.000")
+                print(f"   Similarity score: {score:.3f} / 1.000")
                 print(f"   Preference checks: {result.validation.reasons[rank - 1]}")
                 print()
 
-            print(f"Confidence Level: {result.confidence:.1%}")
+            print(format_validation_summary(result.validation))
             print("=" * 70)
             print()
         except Exception as e:

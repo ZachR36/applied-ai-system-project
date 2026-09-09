@@ -1,6 +1,6 @@
 # GrooveMatch
 
-**Content-based music recommendations with intent validation and confidence-based fallback handling.**
+**Content-based music recommendations with intent validation and match-quality reporting and fallback handling.**
 
 GrooveMatch turns a natural-language music request into a ranked playlist, then evaluates the results through a separate validation layer. The core design distinguishes **similarity scoring** from **intent compliance**: a song can rank highly overall while missing a specific request, such as low-energy music.
 
@@ -10,7 +10,7 @@ Built in Python, the system combines explainable feature scoring, a bounded retr
 
 - **Separation of concerns:** Independent scoring, validation, weight suggestion, and orchestration modules make each stage easier to inspect and test.
 - **Explainable recommendations:** Each result includes a score and feature-level contributions for genre, mood, energy, acousticness, and valence.
-- **Reliability pipeline:** Recommendation sets below the validation target trigger bounded re-scoring attempts; low-confidence results use the best recorded attempt with diagnostic context.
+- **Reliability pipeline:** Recommendation sets below the validation target trigger bounded re-scoring attempts; low-match-rate results use the best recorded attempt with diagnostic context.
 - **Traceable decisions:** Structured results include validation feedback, proposed weight changes, iteration history, and a readable decision log.
 - **Local execution:** The CLI and recommendation pipeline use the Python standard library, a bundled CSV catalog, and no external API credentials.
 
@@ -96,9 +96,9 @@ The standalone scorer ranks by similarity. The reliability engine checks the ent
 
 Each explicitly requested category counts as one equal-weight box. Repeated synonyms do not add weight. Genre must match its recognized label; mood can be exact or related through the existing mood groups. Energy must meet all requested bounds. Acoustic preference uses the existing acousticness threshold of 0.60. For example, “acoustic jazz” checks jazz genre and acousticness, without requiring the genre label “acoustic.”
 
-The field named `confidence` is the fraction of returned songs satisfying **all** recognized requested categories. `preference_coverage` measures the fraction of boxes satisfied across those songs. A playlist can have no complete matches while still satisfying most preferences. Neither measure is a calibrated probability of satisfaction. Requests with no recognized preferences retain the prior nonempty-result match-rate convention of 100%, accompanied by an explicit “no recognized preferences” explanation.
+The complete-match rate (`validation.match_rate` and `final_match_rate`) is the fraction of returned songs satisfying **all** recognized requested categories. The API temporarily retains `confidence` as a compatibility alias for this rate; user-facing output does not call it confidence. `preference_coverage` measures the fraction of boxes satisfied across those songs. A playlist can have no complete matches while still satisfying most preferences. Neither measure is a calibrated probability of satisfaction. Requests with no recognized preferences are **not evaluated**: match rate, preference coverage, and the compatibility `confidence` field are `None`, and `validation.evaluated` is false. The system returns clearly labeled unvalidated suggestions based on the default or supplied profile and skips validation retries. This differs from an evaluated request whose songs satisfy no preferences, which has a genuine 0% rate.
 
-Every round retains the full top-k result, weights, validation details, and match quality. Final selection compares complete-match count, then total boxes satisfied, then similarity under the unchanged default weights so comparisons use a common scale. Exact ties retain the earlier round. The final result always uses the best recorded attempt, even above the low-confidence threshold. Each round uses its applied weights for within-round similarity tie-breaking and score explanations.
+Every round retains the full top-k result, weights, validation details, and match quality. Final selection compares complete-match count, then total boxes satisfied, then similarity under the unchanged default weights so comparisons use a common scale. Exact ties retain the earlier round. The final result always uses the best recorded attempt, even above the diagnostic threshold. Each round uses its applied weights for within-round similarity tie-breaking and score explanations.
 
 Checking the entire catalog already maximizes complete matches and box counts for the available songs. Retries can change similarity tie-breaks; they cannot create missing complete matches or override the preference ordering. Diagnostics count matches with the same checks used for ranking and validation. Both CLI modes expose per-song compromises.
 
@@ -109,9 +109,9 @@ Default controls are configurable through `process_user_request()`:
 | `k` | 5 | Maximum number of recommendations |
 | `min_match_rate` | 0.70 | Trigger retries below this match rate |
 | `max_iterations` | 3 | Bound the number of retry attempts |
-| `min_acceptable_confidence` | 0.40 | Attach low-confidence diagnostics below this rate |
+| `min_acceptable_confidence` | 0.40 | Legacy parameter name: attach diagnostics below this complete-match rate |
 
-A result at exactly 40% does not trigger low-confidence diagnostics. Best-attempt selection applies at every confidence level. Results below the target can still be returned as partial matches after retries are exhausted.
+A result at exactly 40% does not trigger low-match-rate diagnostics. Best-attempt selection applies at every evaluated match rate. Results below the target can still be returned as partial matches after retries are exhausted.
 
 ## Reproducible examples
 
@@ -134,9 +134,9 @@ These examples demonstrate control flow and current behavior; they are not a ben
 python -m pytest tests/ -v
 ```
 
-The repository contains 47 test functions covering score ordering, keyword extraction, preference parsing, validation feedback, conflict detection, weight normalization, retry limits, and orchestration outputs. The tests are organized by component to make regressions easier to localize.
+The repository contains 55 test functions covering score ordering, keyword extraction, preference parsing, validation feedback, conflict detection, weight normalization, retry limits, and orchestration outputs. The tests are organized by component to make regressions easier to localize.
 
-Regression tests cover every validation category, related moods, synonym consolidation, complete matches outside the similarity top-k, partial-match ordering, default-profile exclusion, retry weight application, and preservation of earlier results even above the diagnostic threshold. They also check empty catalogs and consistent diagnostic counts.
+Regression tests cover every validation category, related moods, synonym consolidation, complete matches outside the similarity top-k, partial-match ordering, default-profile exclusion, retry weight application, and preservation of earlier results even above the diagnostic threshold. They also check empty catalogs, consistent diagnostic counts, unevaluated requests, compatibility fields, skipped retries, and both CLI presentation modes.
 
 ## Project structure
 
@@ -154,6 +154,8 @@ tests/                    Component and pipeline tests
 diagrams/system_diagram.md
 model_card.md             Evaluation scope, data assumptions, and limitations
 ```
+
+A request such as “surprise me” displays **“Not evaluated—no supported preferences recognized”** and **“Unvalidated suggestions based on the default or supplied profile.”** A partial match instead displays both metrics, for example **“Complete-match rate: 0.0% (0 of 5 songs match all recognized preferences)”** and **“Preference coverage: 75.0%.”** Similarity scores are labeled separately.
 
 The [catalog notes](data/README.md) document the source, selection policy, approximate moods, and test impact. Numeric audio features are preserved from the source dataset.
 

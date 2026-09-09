@@ -111,7 +111,7 @@ def test_validate_recommendations_partial_match():
 
 
 def test_validate_recommendations_no_keywords():
-    """Test validation with no keywords (should match all)."""
+    """Unrecognized requests cannot establish match quality."""
     songs = make_test_songs()
     recommendations = [
         (songs[0], 0.95, ["Song 1"]),
@@ -120,8 +120,11 @@ def test_validate_recommendations_no_keywords():
 
     result = validate_recommendations("Just give me some music", recommendations)
 
-    assert result.match_rate == 1.0
-    assert result.total_matches == 2
+    assert result.match_rate is None
+    assert result.preference_coverage is None
+    assert result.evaluated is False
+    assert result.total_matches == 0
+    assert not any(check.complete for check in result.song_matches)
 
 
 def test_validate_recommendations_conflicting_energy():
@@ -209,11 +212,15 @@ def test_contradictory_energy_is_one_unsatisfied_box():
     assert result.match_rate == 0.
 
 
-def test_empty_recommendations_have_zero_match_rate():
-    for request in ['happy jazz', 'some music']:
-        result = validate_recommendations(request, [])
-        assert result.match_rate == 0.
-        assert result.preference_coverage == 0.
+def test_empty_results_distinguish_known_and_unknown_preferences():
+    known = validate_recommendations('happy jazz', [])
+    assert known.match_rate == 0.
+    assert known.preference_coverage == 0.
+    assert known.evaluated is True
+    unknown = validate_recommendations('some music', [])
+    assert unknown.match_rate is None
+    assert unknown.preference_coverage is None
+    assert unknown.evaluated is False
 
 
 def test_acoustic_threshold_and_non_acoustic_request():
@@ -223,3 +230,25 @@ def test_acoustic_threshold_and_non_acoustic_request():
     assert validate_recommendations('digital', [(song, .8, [])]).match_rate == 1.
     song.acousticness = .60001
     assert validate_recommendations('acoustic', [(song, .8, [])]).match_rate == 1.
+
+
+def test_summary_distinguishes_partial_coverage_from_complete_matches():
+    from src.validator import format_validation_summary
+    songs = [(Song(i, str(i), 'A', 'jazz', 'happy', .4, 80, .7, .4, .8), .8, [])
+             for i in range(5)]
+    result = validate_recommendations('happy pop tired acoustic', songs)
+    summary = format_validation_summary(result)
+    assert 'Complete-match rate: 0.0%' in summary
+    assert '0 of 5 songs match all recognized preferences' in summary
+    assert 'Preference coverage: 75.0%' in summary
+    assert 'confidence' not in summary.lower()
+
+
+def test_unevaluated_summary_has_no_percentage_even_with_suggestions():
+    from src.validator import log_validation
+    for recommendations in [[], [(make_test_songs()[0], .99, [])]]:
+        result = validate_recommendations('surprise me', recommendations)
+        output = log_validation(result)
+        assert 'Not evaluated—no supported preferences recognized' in output
+        assert 'Unvalidated suggestions' in output
+        assert '%' not in output

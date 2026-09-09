@@ -152,7 +152,9 @@ def test_reliability_engine_returns_formatted_log():
 
     assert isinstance(log, str)
     assert len(log) > 0
-    assert "Match Rate" in log or "Confidence" in log or "Final" in log
+    assert "Complete-match rate:" in log
+    assert "Preference coverage:" in log
+    assert "Confidence" not in log
 
 
 def test_retry_applies_weights_and_retains_earlier_partial_match():
@@ -277,3 +279,61 @@ def test_empty_catalog_retains_an_evaluable_attempt():
     assert result.final_match_rate == 0.
     assert len(result.attempt_history) == 1
     assert 'empty' in result.confidence_low_reason
+
+
+def test_unrecognized_request_skips_retries_and_returns_none_metrics():
+    from unittest.mock import patch
+    from src.recommender import recommend_songs
+    engine = ReliabilityEngine(make_test_songs())
+    with patch.object(engine.optimizer, 'suggest_weight_adjustments', side_effect=AssertionError('must not retry')):
+        result = engine.process_user_request('surprise me', k=2)
+    assert result.recommendations == recommend_songs(engine.parser.parse(''), engine.songs, k=2)
+    assert result.confidence is None
+    assert result.final_match_rate is None
+    assert result.validation.match_rate is None
+    assert result.validation.preference_coverage is None
+    assert result.validation.total_matches == 0
+    assert not result.validation.evaluated
+    assert result.optimization_steps == []
+    assert len(result.attempt_history) == 1
+    attempt = result.attempt_history[0]
+    assert attempt['evaluated'] is False
+    assert attempt['match_rate'] is None
+    assert attempt['preference_coverage'] is None
+    assert attempt['quality'] is None
+    assert result.confidence_low_reason is None
+    assert result.best_attempt_used is False
+    output = engine.log_result(result)
+    assert 'Not evaluated' in output and '%' not in output
+
+
+def test_unrecognized_request_preserves_supplied_profile_without_claiming_match():
+    from src.recommender import recommend_songs
+    engine = ReliabilityEngine(make_test_songs())
+    profile = UserProfile('lofi', 'chill', .3, True)
+    result = engine.process_user_request('surprise me', base_profile=profile, k=1)
+    assert result.recommendations == recommend_songs(profile, engine.songs, k=1)
+    assert result.confidence is None
+    assert not result.validation.evaluated
+
+
+def test_unrecognized_empty_catalog_is_unevaluated_without_retries():
+    result = ReliabilityEngine([]).process_user_request('surprise me')
+    assert result.recommendations == []
+    assert result.confidence is None
+    assert result.optimization_steps == []
+    assert not result.validation.evaluated
+
+
+def test_recognized_unmet_request_remains_evaluated_zero_and_retries():
+    song = Song(1, 'Other', 'A', 'rock', 'melancholic', .8, 100, .3, .3, .1)
+    engine = ReliabilityEngine([song])
+    result = engine.process_user_request('happy jazz acoustic tired')
+    assert result.validation.evaluated
+    assert result.final_match_rate == result.confidence == 0.
+    assert result.validation.preference_coverage == 0.
+    assert len(result.optimization_steps) == 3
+    assert result.confidence_low_reason is not None
+    # Existing configurable thresholds still control evaluated requests.
+    without_retries = engine.process_user_request('happy jazz', min_match_rate=0.)
+    assert without_retries.optimization_steps == []

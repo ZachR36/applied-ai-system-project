@@ -29,7 +29,7 @@ Parsing recognizes explicit genre and mood phrases through shared keyword mappin
 
 `preference_coverage = satisfied category boxes / requested category boxes across returned songs`
 
-The API exposes `match_rate` as `confidence` for compatibility. It is not calibrated against human judgments. With no recognized constraints, nonempty results retain a match rate of one but explicitly report that no preferences were checked. Empty results have zero match rate and coverage.
+The API temporarily exposes `match_rate` as `confidence` for compatibility. User-facing output uses “Complete-match rate” and “Preference coverage”; neither is calibrated against human judgments. With no recognized constraints, both rates and the compatibility `confidence` field are `None`, `validation.evaluated` is false, and no song is counted as a complete match. The system labels suggestions as unvalidated and based on the default or supplied profile, with no validation retries. This also applies to an empty catalog with an unrecognized request. Recognized requests with empty results retain zero match rate and coverage.
 
 Each explicitly requested genre, mood, energy, or acoustic category contributes one equally weighted box. Genre requires a recognized label match; mood accepts exact or existing related-mood matches. Energy constraints use the strictest bounds. Acousticness above 0.60 satisfies an acoustic request; 0.60 or below satisfies a non-acoustic request. Multiple constraints within one category must all be satisfied; duplicates do not increase its weight. Acoustic wording alone is treated as a feature requirement, not a mandatory acoustic genre label.
 
@@ -37,9 +37,9 @@ All catalog songs are checked before truncating to top-k. Complete matches rank 
 
 ## Retry and best-attempt policy
 
-The engine retries below a complete-match rate of 0.70, for at most three iterations by default. Every round scores the full catalog with its applied weights and uses the same preference-first ordering. It retains recommendations, weights, validation, and quality metadata for all rounds, including round zero.
+For evaluated requests, the engine retries below a complete-match rate of 0.70, for at most three iterations by default. Every round scores the full catalog with its applied weights and uses the same preference-first ordering. It retains recommendations, weights, validation, and quality metadata for all rounds, including round zero.
 
-The final selection compares complete-match count, total satisfied boxes, and default-weight similarity, in that order. The fixed comparison weights prevent a score increase caused solely by changing weights from being mistaken for an improvement. Exact ties preserve the earlier attempt. Best-attempt selection is unconditional; below 0.40, diagnostic context is attached as well. The selected round is available as `selected_iteration`.
+The final selection compares complete-match count, total satisfied boxes, and default-weight similarity, in that order. An unevaluated request records one scoring attempt with `evaluated=False` and `quality=None`; it is never compared as a validated candidate. The fixed comparison weights prevent a score increase caused solely by changing weights from being mistaken for an improvement. Exact ties preserve the earlier attempt. Best-attempt selection is unconditional; below 0.40, diagnostic context is attached as well. The selected round is available as `selected_iteration`.
 
 Full-catalog preference ranking already finds the maximum available complete matches and category coverage. Weight adjustment only affects similarity tie-breaks and cannot create missing content. The existing optimizer policy is retained. Diagnostics use the same per-song predicate as validation and no longer infer contradictory preferences merely from the number of matches.
 
@@ -54,7 +54,7 @@ Four requests were executed against the included catalog with `k=5` and default 
 | I want upbeat energetic pop music for my workout | 0.60 | 0.867 | 3 | 0 |
 | I want sleepy music | 1.00 | 1.000 | 0 | 0 |
 
-The repository also includes 47 test functions across scoring, validation, optimization helpers, and orchestration. These checks do not constitute an evaluation of recommendation quality with real listeners. No measured quality uplift, latency benchmark, demographic fairness result, or production-scale evaluation is claimed.
+The repository also includes 55 test functions across scoring, validation, optimization helpers, and orchestration. These checks do not constitute an evaluation of recommendation quality with real listeners. No measured quality uplift, latency benchmark, demographic fairness result, or production-scale evaluation is claimed.
 
 ## Reliability and coverage considerations
 
