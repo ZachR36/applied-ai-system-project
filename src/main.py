@@ -9,6 +9,12 @@ The main recommender now uses a reliability engine that:
 5. Explains all decisions to the user
 """
 
+import os
+import sys
+
+# Dynamically add the project root folder to Python's search path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from src.recommender import load_songs, UserProfile, EXAMPLE_USER
 from src.reliability_engine import ReliabilityEngine
 from src.validator import format_validation_summary
