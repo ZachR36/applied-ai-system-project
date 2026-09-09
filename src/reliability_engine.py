@@ -6,12 +6,14 @@ and iterative weight optimization. It's the core of the advanced AI feature.
 """
 
 from typing import List, Tuple, Dict, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from copy import deepcopy
 import csv
 import os
 
-from src.recommender import Song, UserProfile, recommend_songs
-from src.validator import validate_recommendations, ValidationResult, extract_keywords
+from src.recommender import Song, UserProfile, recommend_songs, score_song
+from src.validator import (validate_recommendations, ValidationResult, extract_keywords,
+                           evaluate_song, rank_by_preferences, GENRE_KEYWORDS, MOOD_KEYWORDS)
 from src.optimizer import WeightOptimizer
 
 
@@ -22,10 +24,13 @@ class PlaylistResult:
     validation: ValidationResult
     optimization_steps: List = None
     final_match_rate: float = 0.0
-    confidence: float = 0.0  # 0.0-1.0: how confident we are in these recommendations
+    confidence: float = 0.0  # Fraction of returned songs satisfying all explicit preferences.
     decision_log: List[str] = None  # Detailed log of all steps taken
     confidence_low_reason: str = None  # Explanation if confidence < 0.4
-    best_attempt_used: bool = False  # Whether we used best attempt due to low confidence
+    best_attempt_used: bool = False  # Earlier round retained or low-confidence output.
+
+    attempt_history: List[Dict] = field(default_factory=list)
+    selected_iteration: int = 0
 
     def __post_init__(self):
         if self.optimization_steps is None:
@@ -37,27 +42,9 @@ class PlaylistResult:
 class PreferenceParser:
     """Parses natural language user input into preference adjustments."""
 
-    # Mood keyword mappings
-    MOOD_KEYWORDS = {
-        'happy': ['happy', 'cheerful', 'joyful', 'upbeat'],
-        'chill': ['chill', 'relaxing', 'calm', 'mellow'],
-        'aggressive': ['aggressive', 'intense', 'angry'],
-        'melancholic': ['sad', 'melancholic', 'depressed'],
-        'focused': ['focused', 'concentrating', 'productive'],
-        'energetic': ['energetic', 'pumped', 'excited'],
-    }
-
-    # Genre keyword mappings
-    GENRE_KEYWORDS = {
-        'pop': ['pop', 'mainstream'],
-        'lofi': ['lofi', 'lo-fi', 'chill hop'],
-        'rock': ['rock', 'hard rock'],
-        'metal': ['metal', 'heavy metal'],
-        'jazz': ['jazz', 'smooth jazz'],
-        'electronic': ['electronic', 'edm', 'synth'],
-        'acoustic': ['acoustic', 'unplugged'],
-        'classical': ['classical', 'orchestral'],
-    }
+    # Shared explicit vocabulary keeps parsing and validation aligned.
+    MOOD_KEYWORDS = MOOD_KEYWORDS
+    GENRE_KEYWORDS = GENRE_KEYWORDS
 
     def parse(self, user_input: str, default_profile: UserProfile = None) -> UserProfile:
         """
@@ -113,20 +100,12 @@ class PreferenceParser:
         )
 
     def _detect_mood(self, user_input_lower: str) -> Optional[str]:
-        """Extract mood from user input."""
-        for mood, keywords in self.MOOD_KEYWORDS.items():
-            for keyword in keywords:
-                if keyword in user_input_lower:
-                    return mood
-        return None
+        _, constraints = extract_keywords(user_input_lower)
+        return constraints['mood'][0]['mood'] if constraints['mood'] else None
 
     def _detect_genre(self, user_input_lower: str) -> Optional[str]:
-        """Extract genre from user input."""
-        for genre, keywords in self.GENRE_KEYWORDS.items():
-            for keyword in keywords:
-                if keyword in user_input_lower:
-                    return genre
-        return None
+        _, constraints = extract_keywords(user_input_lower)
+        return constraints['genre'][0]['genre'] if constraints['genre'] else None
 
     def _detect_energy(self, user_input_lower: str) -> Optional[float]:
         """Extract energy level from user input."""
@@ -159,63 +138,18 @@ class ReliabilityEngine:
     def _diagnose_low_confidence(
         self, user_input: str, recommendations: List[Tuple[Song, float, List[str]]], validation: ValidationResult
     ) -> str:
-        """
-        Diagnose why confidence is low and provide explanation.
-
-        Returns human-readable explanation of the issue.
-        """
-        keywords, constraints = extract_keywords(user_input)
-
-        # Check for insufficient matching songs
-        total_songs = len(self.songs)
-        matching_songs = 0
-
-        for song in self.songs:
-            song_matches = True
-
-            for constraint in constraints.get('energy', []):
-                if 'energy_min' in constraint and song.energy < constraint['energy_min']:
-                    song_matches = False
-                if 'energy_max' in constraint and song.energy > constraint['energy_max']:
-                    song_matches = False
-
-            for constraint in constraints.get('mood', []):
-                if 'mood' in constraint and song.mood.lower() != constraint['mood'].lower():
-                    song_matches = False
-
-            for constraint in constraints.get('acoustic', []):
-                is_acoustic = song.acousticness > 0.6
-                if constraint.get('likes_acoustic') and not is_acoustic:
-                    song_matches = False
-                elif not constraint.get('likes_acoustic') and is_acoustic:
-                    song_matches = False
-
-            if song_matches:
-                matching_songs += 1
-
-        # Generate explanation based on what we found
-        if matching_songs == 0:
-            return (
-                f"❌ **No songs match all your preferences** — The catalog has {total_songs} songs total, "
-                f"but none satisfy all of: {', '.join(keywords)}. "
-                f"We're recommending the closest matches instead. "
-                f"Try relaxing one preference (e.g., 'I want happy music, energy doesn't matter as much')."
-            )
-        elif matching_songs < 3:
-            return (
-                f"⚠️  **Very few matching songs** — Only {matching_songs} out of {total_songs} songs in the catalog "
-                f"match all your preferences ({', '.join(keywords)}). "
-                f"We're recommending the {len(recommendations)} best alternatives. "
-                f"More songs in this style would improve recommendations."
-            )
-        else:
-            # Conflicting constraints that can't be fully resolved
-            return (
-                f"⚠️  **Conflicting preferences detected** — Your request has constraints that are hard to balance "
-                f"({', '.join(keywords)}). "
-                f"No single group of songs can fully satisfy all of them. "
-                f"We're showing songs that best balance your needs."
-            )
+        """Use the same predicate as ranking and validation for catalog diagnostics."""
+        _, constraints = extract_keywords(user_input)
+        matching = sum(evaluate_song(song, constraints).complete for song in self.songs)
+        if not self.songs:
+            return "The catalog is empty; no recommendations are available."
+        return (
+            f"{matching} of {len(self.songs)} catalog songs satisfy all recognized requested preferences. "
+            f"Returning {validation.total_matches} complete matches and "
+            f"{validation.total_songs - validation.total_matches} partial matches. "
+            "Partial matches are ordered by preferences satisfied, then similarity; "
+            "see each song's matched and missed preferences."
+        )
 
     def process_user_request(
         self,
@@ -226,134 +160,85 @@ class ReliabilityEngine:
         min_acceptable_confidence: float = 0.4,
         max_iterations: int = 3,
     ) -> PlaylistResult:
+        """Rank all songs by explicit preference coverage, then similarity.
+
+        Retain every attempt. Compare rounds by complete matches, total boxes
+        satisfied, then default-weight similarity on a common scoring scale.
+        Exact ties keep the earlier attempt. Confidence is the full-match rate,
+        not a probability. Parser defaults only influence similarity tie-breaks.
         """
-        Process a user request through the full reliability pipeline.
-
-        Args:
-            user_input: Natural language user request
-            base_profile: Base UserProfile to build on (optional)
-            k: Number of songs to recommend
-            min_match_rate: Target validation match rate (0.7 = 70%)
-            min_acceptable_confidence: If confidence stays below this after optimization, use best attempt (default 0.4)
-            max_iterations: Max optimization iterations
-
-        Returns:
-            PlaylistResult with recommendations, validation, and decision log
-        """
-        decision_log = []
-        decision_log.append(f"📝 User Input: '{user_input}'")
-
-        # Step 1: Parse user input into preferences
-        decision_log.append("\n1️⃣ Parsing User Input...")
-        parsed_profile = self.parser.parse(user_input, base_profile)
-        decision_log.append(f"   Genre: {parsed_profile.favorite_genre}")
-        decision_log.append(f"   Mood: {parsed_profile.favorite_mood}")
-        decision_log.append(f"   Energy: {parsed_profile.target_energy:.2f}")
-        decision_log.append(f"   Acoustic: {parsed_profile.likes_acoustic}")
-
-        # Step 2: Score songs with default weights
-        decision_log.append("\n2️⃣ Scoring Songs (Default Weights)...")
-        current_profile = parsed_profile
-        current_weights = self.optimizer.DEFAULT_WEIGHTS.copy()
-        recommendations = recommend_songs(current_profile, self.songs, k=k, weights=current_weights)
-        decision_log.append(f"   Top {k} songs scored")
-
-        # Step 3: Validate recommendations
-        decision_log.append("\n3️⃣ Validating Recommendations...")
+        profile = self.parser.parse(user_input, base_profile)
         keywords, constraints = extract_keywords(user_input)
-        validation = validate_recommendations(user_input, recommendations, keywords, constraints)
-        decision_log.append(f"   Match Rate: {validation.match_rate:.1%} ({validation.total_matches}/{validation.total_songs})")
-
-        # Step 4: Iterative optimization if needed
+        current_weights = self.optimizer.DEFAULT_WEIGHTS.copy()
+        decision_log = [
+            f"User Input: {user_input!r}",
+            f"Parsing: genre={profile.favorite_genre}, mood={profile.favorite_mood}, "
+            f"energy={profile.target_energy:.2f}, acoustic={profile.likes_acoustic}",
+            "Validating explicit preferences only; similarity defaults are not requirements.",
+            f"Detected conflicts: {', '.join(self.optimizer.detect_conflicts(user_input)) or 'None'}",
+        ]
+        attempts = []
         optimization_steps = []
-        best_attempt = {
-            'recommendations': recommendations,
-            'validation': validation,
-            'match_rate': validation.match_rate,
-        }
 
-        if validation.match_rate < min_match_rate:
-            decision_log.append(f"\n4️⃣ Optimizing Weights (Match Rate < {min_match_rate:.0%})...")
-            decision_log.append(f"   Detected conflicts: {', '.join(self.optimizer.detect_conflicts(user_input)) or 'None'}")
+        def evaluate_attempt(iteration, weights):
+            # Do not truncate by similarity before checking preference coverage.
+            scored = recommend_songs(profile, self.songs, k=len(self.songs), weights=weights)
+            recommendations = rank_by_preferences(scored, constraints, k)
+            validation = validate_recommendations(user_input, recommendations, keywords, constraints)
+            # Scores under different weights are not directly comparable. Use
+            # the unchanged default weights only to break equal-quality round ties.
+            baseline_similarity = sum(score_song(profile, song)[0] for song, _, _ in recommendations)
+            quality = (validation.total_matches,
+                       sum(check.matched_count for check in validation.song_matches),
+                       baseline_similarity)
+            attempt = deepcopy({
+                'iteration': iteration, 'weights': weights,
+                'recommendations': recommendations, 'validation': validation,
+                'match_rate': validation.match_rate,
+                'preference_coverage': validation.preference_coverage,
+                'quality': quality,
+            })
+            attempts.append(attempt)
+            decision_log.append(
+                f"Scoring round {iteration}: complete matches {validation.total_matches}/{validation.total_songs} "
+                f"({validation.match_rate:.1%}); preference coverage {validation.preference_coverage:.1%}"
+            )
+            return attempt
 
+        current = evaluate_attempt(0, current_weights)
+        best = current
+        if current['match_rate'] < min_match_rate:
             for iteration in range(1, max_iterations + 1):
-                decision_log.append(f"\n   Iteration {iteration}:")
-
-                # Get weight suggestions
-                new_weights = self.optimizer.suggest_weight_adjustments(
-                    user_input, current_weights, validation.match_rate
+                current_weights = self.optimizer.suggest_weight_adjustments(
+                    user_input, current_weights, current['match_rate']
                 )
-
-                # Log weight changes
-                for weight_name in ['genre', 'mood', 'energy', 'acoustic', 'valence']:
-                    old = current_weights[weight_name]
-                    new = new_weights[weight_name]
-                    if abs(new - old) > 0.01:
-                        change = "↑" if new > old else "↓"
-                        decision_log.append(f"     {weight_name}: {old:.2f} → {new:.2f} {change}")
-
-                current_weights = new_weights
-
-                # Re-score using the adjusted weights while preserving the user profile.
-                recommendations = recommend_songs(current_profile, self.songs, k=k, weights=current_weights)
-
-                # Re-validate
-                validation = validate_recommendations(user_input, recommendations, keywords, constraints)
-                decision_log.append(f"     New Match Rate: {validation.match_rate:.1%}")
-
-                optimization_steps.append({
-                    'iteration': iteration,
-                    'weights': new_weights.copy(),
-                    'match_rate': validation.match_rate,
-                })
-
-                # Track best attempt so far
-                if validation.match_rate > best_attempt['match_rate']:
-                    best_attempt = {
-                        'recommendations': recommendations,
-                        'validation': validation,
-                        'match_rate': validation.match_rate,
-                    }
-
-                # Exit early if validation passes
-                if validation.match_rate >= min_match_rate:
-                    decision_log.append(f"\n   ✅ Optimization Passed!")
+                current = evaluate_attempt(iteration, current_weights)
+                optimization_steps.append(deepcopy({
+                    'iteration': iteration, 'weights': current_weights,
+                    'match_rate': current['match_rate'],
+                    'preference_coverage': current['preference_coverage'],
+                }))
+                if current['quality'] > best['quality']:
+                    best = current
+                if current['match_rate'] >= min_match_rate:
                     break
 
-        # Step 5: Calculate confidence and handle low-confidence fallback
-        decision_log.append("\n5️⃣ Final Result:")
+        recommendations = best['recommendations']
+        validation = best['validation']
         confidence = validation.match_rate
-        best_attempt_used = False
-        confidence_low_reason = None
-
-        # If confidence is still too low, use best attempt and explain why
-        if confidence < min_acceptable_confidence:
-            decision_log.append(f"\n   ⚠️  Confidence remains below {min_acceptable_confidence:.0%} ({confidence:.1%})")
-            decision_log.append(f"   Using best attempt from optimization...")
-
-            # Use the best attempt we found
-            recommendations = best_attempt['recommendations']
-            validation = best_attempt['validation']
-            confidence = best_attempt['match_rate']
-            best_attempt_used = True
-
-            # Diagnose what went wrong
-            confidence_low_reason = self._diagnose_low_confidence(user_input, recommendations, validation)
-            decision_log.append(f"\n   Why is confidence low?")
-            decision_log.append(f"   {confidence_low_reason}")
-
-        decision_log.append(f"   Final Match Rate: {confidence:.1%}")
-        decision_log.append(f"   Confidence: {confidence:.1%}")
-
+        low_confidence = confidence < min_acceptable_confidence
+        best_attempt_used = best['iteration'] != current['iteration'] or low_confidence
+        reason = self._diagnose_low_confidence(user_input, recommendations, validation) if low_confidence else None
+        decision_log.append(f"Selected round {best['iteration']} of {len(attempts)} evaluated attempts.")
+        decision_log.append(f"Final Match Rate: {confidence:.1%}; preference coverage: {validation.preference_coverage:.1%}")
+        if reason:
+            decision_log.append(reason)
         return PlaylistResult(
-            recommendations=recommendations,
-            validation=validation,
-            optimization_steps=optimization_steps,
-            final_match_rate=validation.match_rate,
-            confidence=confidence,
-            decision_log=decision_log,
-            confidence_low_reason=confidence_low_reason,
-            best_attempt_used=best_attempt_used,
+            recommendations=deepcopy(recommendations), validation=deepcopy(validation),
+            optimization_steps=optimization_steps, final_match_rate=confidence,
+            confidence=confidence, decision_log=decision_log,
+            confidence_low_reason=reason, best_attempt_used=best_attempt_used,
+            attempt_history=attempts, selected_iteration=best['iteration'],
         )
 
     def log_result(self, result: PlaylistResult) -> str:

@@ -1,27 +1,66 @@
-"""
-Validates whether recommendations match a user's stated intent.
-
-This module extracts keywords from user input and checks if the recommended
-songs actually match what the user asked for. Used by the reliability engine
-to determine if weight adjustments are needed.
-"""
+"""Evaluate explicit preferences independently of similarity scores."""
 
 from typing import List, Tuple, Dict
-from dataclasses import dataclass
-from src.recommender import Song
+from dataclasses import dataclass, field
+import re
+from src.recommender import Song, _similar_mood
+
+
+@dataclass
+class SongMatch:
+    song_id: int
+    matched_preferences: List[str]
+    missed_preferences: List[str]
+    details: List[str]
+
+    @property
+    def matched_count(self) -> int:
+        return len(self.matched_preferences)
+
+    @property
+    def total_preferences(self) -> int:
+        return self.matched_count + len(self.missed_preferences)
+
+    @property
+    def complete(self) -> bool:
+        return not self.missed_preferences
 
 
 @dataclass
 class ValidationResult:
-    """Result of validating a set of recommendations."""
-    match_rate: float  # 0.0 to 1.0: fraction of songs that match intent
-    total_matches: int  # How many songs matched
-    total_songs: int  # Total songs validated
-    reasons: List[str]  # Detailed feedback on what matched/didn't
-    keywords_found: List[str]  # Keywords extracted from user input
+    match_rate: float  # Fraction of returned songs satisfying every explicit preference.
+    total_matches: int
+    total_songs: int
+    reasons: List[str]
+    keywords_found: List[str]
+    song_matches: List[SongMatch] = field(default_factory=list)
+    preference_coverage: float = 0.0  # Fraction of requested boxes satisfied across results.
 
 
-# Keyword mappings: user intent phrases → feature targets
+# Acoustic/unplugged describes a feature, not a mandatory genre: acoustic jazz
+# can satisfy both jazz and acousticness without being tagged "acoustic".
+GENRE_KEYWORDS = {
+    'pop': ['pop', 'mainstream'],
+    'indie pop': ['indie pop', 'indie-pop'],
+    'lofi': ['lofi', 'lo-fi', 'chill hop'],
+    'rock': ['rock', 'hard rock'],
+    'metal': ['metal', 'heavy metal'],
+    'jazz': ['jazz', 'smooth jazz'],
+    'electronic': ['electronic', 'edm', 'synth'],
+    'classical': ['classical', 'orchestral'],
+    'country': ['country'],
+    'hip-hop': ['hip-hop', 'hip hop', 'rap'],
+    'study': ['study'],
+}
+MOOD_KEYWORDS = {
+    'happy': ['happy', 'cheerful', 'joyful', 'upbeat'],
+    'chill': ['chill', 'relaxing', 'relaxed', 'calm', 'mellow', 'peaceful', 'gentle'],
+    'aggressive': ['aggressive', 'intense', 'angry'],
+    'melancholic': ['sad', 'melancholic', 'depressed'],
+    'focused': ['focused', 'concentrating', 'productive'],
+    'energetic': ['energetic', 'pumped', 'excited', 'active', 'lively', 'bouncy'],
+    'playful': ['playful'],
+}
 INTENT_KEYWORDS = {
     # Energy level
     'upbeat': {'energy_min': 0.7, 'category': 'energy'},
@@ -58,163 +97,137 @@ INTENT_KEYWORDS = {
     'digital': {'likes_acoustic': False, 'category': 'acoustic'},
 }
 
+# Include energy vocabulary already supported by the preference parser.
+for word in ['workout', 'gym']:
+    INTENT_KEYWORDS[word] = {'energy_min': .7, 'category': 'energy'}
+for word in ['low energy', 'low-energy']:
+    INTENT_KEYWORDS[word] = {'energy_max': .45, 'category': 'energy'}
+for word in ['peaceful', 'gentle']:
+    INTENT_KEYWORDS[word] = {'energy_max': .5, 'category': 'energy'}
+for word in ['active', 'lively', 'bouncy']:
+    INTENT_KEYWORDS[word] = {'energy_min': .6, 'category': 'energy'}
+
 
 def _consolidate_constraints(constraints: Dict) -> Dict:
-    """
-    Consolidate multiple constraints to the strictest requirement.
+    """Keep the strictest energy bounds and deduplicate other constraints."""
+    result = {key: [] for key in ['genre', 'mood', 'energy', 'acoustic']}
+    energy = constraints.get('energy', [])
+    lower = [c['energy_min'] for c in energy if 'energy_min' in c]
+    upper = [c['energy_max'] for c in energy if 'energy_max' in c]
+    if lower:
+        result['energy'].append({'energy_min': max(lower), 'category': 'energy'})
+    if upper:
+        result['energy'].append({'energy_max': min(upper), 'category': 'energy'})
+    for key in ['genre', 'mood', 'acoustic']:
+        for constraint in constraints.get(key, []):
+            if constraint not in result[key]:
+                result[key].append(constraint.copy())
+    return result
 
-    If user says both "tired" and "exhausted", use the stricter energy_max.
-    If user says "upbeat" and "intense", use the stricter energy_min.
-    """
-    consolidated = {'energy': [], 'mood': [], 'acoustic': []}
 
-    # For energy: use the strictest (lowest max, highest min)
-    energy_constraints = constraints.get('energy', [])
-    if energy_constraints:
-        min_energy_max = min((c.get('energy_max', float('inf')) for c in energy_constraints), default=None)
-        max_energy_min = max((c.get('energy_min', 0) for c in energy_constraints), default=0)
-
-        if min_energy_max is not None and min_energy_max != float('inf'):
-            consolidated['energy'].append({'energy_max': min_energy_max, 'category': 'energy'})
-        if max_energy_min > 0:
-            consolidated['energy'].append({'energy_min': max_energy_min, 'category': 'energy'})
-
-    # For mood and acoustic: keep all (they're not typically conflicting)
-    consolidated['mood'] = constraints.get('mood', [])
-    consolidated['acoustic'] = constraints.get('acoustic', [])
-
-    return consolidated
+def _occurrences(text: str, phrase: str):
+    return re.finditer(r'(?<!\w)' + re.escape(phrase) + r'(?!\w)', text)
 
 
 def extract_keywords(user_input: str) -> Tuple[List[str], Dict]:
+    """Extract recognized, explicitly stated preferences; never add defaults.
+
+    Negation and arbitrary natural-language reasoning remain unsupported.
+    Longest genre phrases win overlaps ("indie pop" is not also "pop").
     """
-    Extract intent keywords from user input.
+    text = user_input.lower()
+    constraints = {key: [] for key in ['genre', 'mood', 'energy', 'acoustic']}
+    keywords = []
+    occupied = set()
+    genres = sorted(((word, genre) for genre, words in GENRE_KEYWORDS.items()
+                     for word in words), key=lambda pair: -len(pair[0]))
+    for word, genre in genres:
+        for match in _occurrences(text, word):
+            span = set(range(*match.span()))
+            if span & occupied:
+                continue
+            occupied.update(span)
+            constraints['genre'].append({'genre': genre, 'category': 'genre'})
+            if word not in keywords:
+                keywords.append(word)
+    # Avoid interpreting the "chill" inside the genre alias "chill hop" as mood.
+    mood_text = ''.join(' ' if i in occupied else char for i, char in enumerate(text))
+    for mood, words in MOOD_KEYWORDS.items():
+        for word in words:
+            if next(_occurrences(mood_text, word), None):
+                constraints['mood'].append({'mood': mood, 'category': 'mood'})
+                if word not in keywords:
+                    keywords.append(word)
+    for word, constraint in INTENT_KEYWORDS.items():
+        if constraint['category'] == 'mood':
+            continue
+        search_text = mood_text if constraint['category'] == 'energy' else text
+        if next(_occurrences(search_text, word), None):
+            constraints[constraint['category']].append(constraint.copy())
+            if word not in keywords:
+                keywords.append(word)
+    return keywords, constraints
 
-    Returns:
-        (keywords_found, intent_constraints)
-        keywords_found: list of matched keywords
-        intent_constraints: dict of {category: [constraints]}
-    """
-    user_input_lower = user_input.lower()
-    keywords_found = []
-    intent_constraints = {'energy': [], 'mood': [], 'acoustic': []}
 
-    for keyword, constraint in INTENT_KEYWORDS.items():
-        if keyword in user_input_lower:
-            keywords_found.append(keyword)
-            category = constraint.get('category')
-            if category in intent_constraints:
-                intent_constraints[category].append(constraint)
+def evaluate_song(song: Song, constraints: Dict) -> SongMatch:
+    """One equal-weight box per requested category, regardless of synonyms."""
+    constraints = _consolidate_constraints(constraints)
+    matched, missed, details = [], [], []
+    for category, checks in constraints.items():
+        if not checks:
+            continue
+        if category == 'genre':
+            actual = song.genre.lower().replace('indie-pop', 'indie pop')
+            passed = all(actual == c['genre'] for c in checks)
+            detail = f"Genre {song.genre}; requested: {', '.join(c['genre'] for c in checks)}"
+        elif category == 'mood':
+            passed = all(song.mood.lower() == c['mood'] or _similar_mood(song.mood, c['mood']) for c in checks)
+            detail = f"Mood {song.mood}; requested: {', '.join(c['mood'] for c in checks)} (related moods allowed)"
+        elif category == 'energy':
+            passed = all(song.energy >= c.get('energy_min', 0.) and song.energy <= c.get('energy_max', 1.) for c in checks)
+            bounds = [f">= {c['energy_min']}" if 'energy_min' in c else f"<= {c['energy_max']}" for c in checks]
+            detail = f"Energy {song.energy:.2f}; requested: {' and '.join(bounds)}"
+        else:
+            passed = all((song.acousticness > .6) == c['likes_acoustic'] for c in checks)
+            targets = ['acoustic (> 0.60)' if c['likes_acoustic'] else 'non-acoustic (<= 0.60)' for c in checks]
+            detail = f"Acousticness {song.acousticness:.2f}; requested: {', '.join(targets)}"
+        (matched if passed else missed).append(category)
+        details.append(f"{'✓' if passed else '✗'} {detail}")
+    return SongMatch(song.id, matched, missed, details)
 
-    return keywords_found, intent_constraints
+
+def rank_by_preferences(recommendations: List[Tuple], constraints: Dict, k: int) -> List[Tuple]:
+    """Rank the entire scored catalog: boxes first, round similarity second."""
+    return sorted(recommendations,
+                  key=lambda item: (evaluate_song(item[0], constraints).matched_count, item[1]),
+                  reverse=True)[:k]
 
 
-def validate_recommendations(
-    user_input: str,
-    recommendations: List[Tuple],  # [(song, score, reasons), ...]
-    keywords: List[str] = None,
-    constraints: Dict = None,
-) -> ValidationResult:
-    """
-    Validate if recommendations match user's stated intent.
-
-    Args:
-        user_input: Original user input text
-        recommendations: List of (song, score, reasons) tuples from recommend_songs()
-        keywords: Pre-extracted keywords (optional, extracted if not provided)
-        constraints: Pre-extracted constraints (optional, extracted if not provided)
-
-    Returns:
-        ValidationResult with match_rate, reasons, and detailed feedback
-    """
-    # Extract keywords if not provided
+def validate_recommendations(user_input: str, recommendations: List[Tuple],
+                             keywords: List[str] = None, constraints: Dict = None) -> ValidationResult:
     if keywords is None or constraints is None:
         keywords, constraints = extract_keywords(user_input)
-
-    # If no keywords found, consider all valid (match rate = 1.0)
-    if not keywords:
-        return ValidationResult(
-            match_rate=1.0,
-            total_matches=len(recommendations),
-            total_songs=len(recommendations),
-            reasons=["No specific intent keywords found; all recommendations valid"],
-            keywords_found=keywords,
-        )
-
-    # Consolidate multiple constraints to strictest requirement
-    consolidated_constraints = _consolidate_constraints(constraints)
-
+    checks = [evaluate_song(song, constraints) for song, _, _ in recommendations]
+    total = len(checks)
+    complete = sum(check.complete for check in checks)
+    boxes = sum(check.total_preferences for check in checks)
     reasons = []
-    matches = 0
-
-    # Check each recommendation
-    for song, score, song_reasons in recommendations:
-        song_matches = True
-        song_feedback = []
-
-        # Check energy constraints (use consolidated strictest constraints)
-        for constraint in consolidated_constraints.get('energy', []):
-            if 'energy_min' in constraint:
-                if song.energy < constraint['energy_min']:
-                    song_matches = False
-                    song_feedback.append(f"✗ Energy {song.energy:.2f} < {constraint['energy_min']} (user wants upbeat)")
-                else:
-                    song_feedback.append(f"✓ Energy {song.energy:.2f} ≥ {constraint['energy_min']}")
-
-            if 'energy_max' in constraint:
-                if song.energy > constraint['energy_max']:
-                    song_matches = False
-                    song_feedback.append(f"✗ Energy {song.energy:.2f} > {constraint['energy_max']} (user wants calm)")
-                else:
-                    song_feedback.append(f"✓ Energy {song.energy:.2f} ≤ {constraint['energy_max']}")
-
-        # Check mood constraints
-        for constraint in constraints.get('mood', []):
-            if 'mood' in constraint:
-                if song.mood.lower() == constraint['mood'].lower():
-                    song_feedback.append(f"✓ Mood matches: {song.mood}")
-                else:
-                    # Don't hard-fail on mood mismatch; it's less critical
-                    song_feedback.append(f"~ Mood {song.mood} vs preferred {constraint['mood']}")
-
-        # Check acoustic constraints
-        for constraint in constraints.get('acoustic', []):
-            if 'likes_acoustic' in constraint:
-                is_acoustic = song.acousticness > 0.6
-                if constraint['likes_acoustic'] and not is_acoustic:
-                    song_feedback.append(f"✗ Not acoustic enough ({song.acousticness:.2f})")
-                elif not constraint['likes_acoustic'] and is_acoustic:
-                    song_feedback.append(f"✗ Too acoustic ({song.acousticness:.2f})")
-                else:
-                    song_feedback.append(f"✓ Acoustic preference matched")
-
-        if song_matches:
-            matches += 1
-            reason_str = f"✓ {song.title}: {', '.join(song_feedback)}"
+    for (song, _, _), check in zip(recommendations, checks):
+        if not check.total_preferences:
+            reasons.append(f"{song.title}: no recognized explicit preferences to check")
         else:
-            reason_str = f"✗ {song.title}: {', '.join(song_feedback)}"
-
-        reasons.append(reason_str)
-
-    match_rate = matches / len(recommendations) if recommendations else 0.0
-
+            reasons.append(f"{'✓' if check.complete else '✗'} {song.title}: "
+                           f"{check.matched_count}/{check.total_preferences} preferences; " + '; '.join(check.details))
     return ValidationResult(
-        match_rate=match_rate,
-        total_matches=matches,
-        total_songs=len(recommendations),
-        reasons=reasons,
-        keywords_found=keywords,
+        match_rate=complete / total if total else 0., total_matches=complete,
+        total_songs=total, reasons=reasons, keywords_found=keywords,
+        song_matches=checks,
+        preference_coverage=sum(c.matched_count for c in checks) / boxes if boxes else (1. if total else 0.),
     )
 
 
 def log_validation(validation: ValidationResult) -> str:
-    """Format validation result as readable log."""
-    output = []
-    output.append(f"\n🔍 Validation Report:")
-    output.append(f"   Match Rate: {validation.match_rate:.1%} ({validation.total_matches}/{validation.total_songs})")
-    output.append(f"   Keywords Found: {', '.join(validation.keywords_found) if validation.keywords_found else 'None'}")
-    output.append(f"\n   Details:")
-    for reason in validation.reasons:
-        output.append(f"   {reason}")
-
-    return "\n".join(output)
+    return '\n'.join([
+        f"Complete matches: {validation.total_matches}/{validation.total_songs} ({validation.match_rate:.1%})",
+        f"Preference coverage: {validation.preference_coverage:.1%}", *validation.reasons,
+    ])

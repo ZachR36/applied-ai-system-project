@@ -4,50 +4,48 @@
 
 ```mermaid
 flowchart TD
-    A[User request and optional base profile] --> B[PreferenceParser]
-    B --> C[UserProfile]
-    C --> D[Weighted scorer]
-    Catalog[CSV song catalog] --> D
-    D --> E[Top-k songs with feature explanations]
-    A --> F[Extract and consolidate intent constraints]
-    E --> G[Validator]
-    F --> G
-    G --> H{Match rate below 70% and retries remain?}
-    H -->|Yes| I[Suggest and log normalized weights]
-    I --> J[Re-score with unchanged profile and adjusted weights]
-    J --> G
-    H -->|No| K{Final match rate below 40%?}
-    K -->|Yes| L[Select best recorded attempt]
-    L --> M[Generate catalog diagnostic]
-    K -->|No| N[Use current results]
-    M --> O[PlaylistResult]
-    N --> O
-    O --> P[CLI output or Python caller]
+    A[Request and optional similarity profile] --> B[Shared genre and mood vocabulary]
+    B --> C[Explicit category constraints]
+    A --> D[Similarity profile]
+    D --> E[Score entire catalog with current weights]
+    C --> F[Per-song preference checks]
+    E --> F
+    F --> G[Rank by satisfied boxes then similarity]
+    G --> H[Record top-k attempt and validation]
+    H --> I{Below complete-match target and retries remain?}
+    I -->|Yes| J[Adjust weights]
+    J --> E
+    I -->|No| K[Compare all recorded attempts]
+    K --> L[Best result and matched/missed checklist]
+    L --> M[Low-confidence diagnostics using the same checks]
 ```
-
-The thresholds and retry limit are configurable. The default retry limit is three. The retry path applies suggested weights to ranking and feature-level score explanations; omitted weights preserve the original defaults.
 
 ## Component boundaries
 
-| Component | Responsibility | Output |
-| --- | --- | --- |
-| `load_songs()` | Read CSV records into `Song` objects | Catalog |
-| `PreferenceParser` | Map request keywords into genre, mood, energy, and acoustic preferences | `UserProfile` |
-| `recommend_songs()` | Score every song and return the top `k` | Song, score, and explanation tuples |
-| `validate_recommendations()` | Apply energy pass/fail checks and report mood/acoustic feedback | `ValidationResult` |
-| `WeightOptimizer` | Propose normalized weights from request constraints | Weight dictionary |
-| `ReliabilityEngine` | Coordinate parsing, scoring, validation, retries, best-attempt tracking, and diagnostics | `PlaylistResult` |
-| CLI | Present demos, accept requests, and display outputs | Terminal interaction |
+| Component | Responsibility |
+| --- | --- |
+| `PreferenceParser` | Build the similarity profile; share genre/mood extraction with validation |
+| `recommend_songs()` | Return similarity scores and feature contributions, using optional weights |
+| `extract_keywords()` | Extract explicit genre, mood, energy, and acoustic requirements |
+| `evaluate_song()` | Produce matched/missed categories and explanations; one box per requested category |
+| `rank_by_preferences()` | Rank the full scored catalog by boxes satisfied, then current similarity; select top-k |
+| `validate_recommendations()` | Report complete-match rate and aggregate preference coverage |
+| `WeightOptimizer` | Propose normalized weights under the existing retry policy |
+| `ReliabilityEngine` | Retain attempts, select the best, and provide consistent diagnostics |
+| CLI | Present scores and matched/missed preference feedback |
 
-## Contracts and boundaries
+## Selection and history contracts
 
-- Similarity scores describe weighted feature alignment; validation match rate describes energy-constraint compliance.
-- The `confidence` field equals validation match rate. It is not a statistical probability.
-- Best-attempt tracking updates only when a retry improves match rate. Adaptive retries can improve compliance but are not guaranteed to do so.
-- Fallback activates strictly below the configured confidence threshold. Exhausting retries alone does not activate it.
-- Diagnostic catalog checks use stricter mood/acoustic criteria than validation, so their explanations can diverge from the reported match rate.
-- The detailed demo and Python result expose diagnostic context; interactive mode presents a shorter recommendation list and confidence summary.
+- Parser defaults influence similarity only; explicit recognized preferences determine validation.
+- Related moods use the same existing mood groups as the scorer. Acoustic wording is a feature constraint, not an implied genre requirement.
+- Every round evaluates the whole catalog before top-k selection, ensuring complete matches cannot be hidden by a low similarity score.
+- `attempt_history` includes round zero and every retry, with separate snapshots of recommendations, weights, validation, and quality.
+- Compare rounds by complete-match count, total matched boxes, then total similarity under fixed default weights. Exact ties favor the earlier round.
+- `selected_iteration` identifies the returned snapshot. `best_attempt_used` is true if an earlier round was retained or the selected result is below the diagnostic threshold.
+- `confidence` remains an alias for complete-match rate. `preference_coverage` reports partial fulfillment separately.
+- Default retry target: 0.70; retry limit: three; diagnostic threshold: strictly below 0.40. Best-attempt selection applies at every confidence level.
+- Full-catalog preference ranking already maximizes available matches. Retries only change similarity tie-breaks; they cannot create missing content.
 
-## Verification priorities
+## Verification
 
-Existing tests exercise component outputs, weight normalization, keyword handling, and request orchestration. Regression tests verify that applied weights can change rankings and improve energy compliance on a controlled example. Further checks should cover fallback selection across varying attempts and agreement between diagnostics and validation. See the [model card](../model_card.md) for current evaluation limits.
+Tests cover complete matches below the similarity cutoff, equal-category partial ranking, related moods, independent failure of each category, repeated keywords, contradictory energy constraints, historical snapshots, earlier-round retention above the diagnostic threshold, empty results, and shared diagnostic checks. See the [model card](../model_card.md) for metric interpretation and remaining language limitations.

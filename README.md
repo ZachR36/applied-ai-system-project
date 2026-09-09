@@ -14,7 +14,7 @@ Built in Python, the system combines explainable feature scoring, a bounded retr
 - **Traceable decisions:** Structured results include validation feedback, proposed weight changes, iteration history, and a readable decision log.
 - **Local execution:** The CLI and recommendation pipeline use the Python standard library, a bundled CSV catalog, and no external API credentials.
 
-**Adaptive scoring:** Retry attempts apply adjusted weights to every song and its score explanation. The optimizer can trade genre/mood similarity for energy compliance; retries are bounded and do not guarantee that every request can be fulfilled.
+**Preference-first ranking:** Every catalog song is checked against the explicitly requested genre, mood, energy, and acoustic preference before selecting results. Complete matches come first; partial matches are ordered by boxes satisfied, then similarity. Retry history preserves earlier results so later rounds cannot replace them with a lower-quality selection.
 
 ## Quick start
 
@@ -58,23 +58,22 @@ for song, score, reasons in result.recommendations:
     print(f"{song.title} — {song.artist}: {score:.3f}")
 ```
 
-`PlaylistResult` exposes recommendations, validation results, confidence, optimization steps, a decision log, and fallback metadata for callers that need more than formatted text.
+`PlaylistResult` exposes recommendations, per-song matched/missed preferences, complete-match rate, preference coverage, retry metadata, and a decision log. `attempt_history` retains each round’s recommendations, weights, validation, and comparison quality; `selected_iteration` identifies the returned round (zero is the initial round).
 
 ## How the pipeline works
 
 ```mermaid
 flowchart LR
-    A[Music request] --> B[Parse preferences]
-    B --> C[Score and rank catalog]
-    C --> D[Validate intent constraints]
-    D --> E{Below target?}
-    E -->|Yes, retries remain| F[Suggest weights and re-score]
-    F --> D
-    E -->|No, or retries exhausted| G{Below fallback threshold?}
-    G -->|Yes| H[Best attempt and diagnostics]
-    G -->|No| I[Return current results]
-    H --> J[Scores, feedback, and decision log]
-    I --> J
+    A[Music request] --> B[Parse profile and explicit preferences]
+    B --> C[Score every catalog song]
+    C --> D[Check all requested preferences]
+    D --> E[Rank by boxes satisfied then similarity]
+    E --> F[Record top-k attempt]
+    F --> G{Below target and retries remain?}
+    G -->|Yes| H[Adjust weights]
+    H --> C
+    G -->|No| I[Select best recorded attempt]
+    I --> J[Results with matched and missed preferences]
 ```
 
 The retry node passes adjusted weights into the scorer while retaining the parsed user profile. See the [architecture notes](diagrams/system_diagram.md) for component responsibilities and control flow.
@@ -91,13 +90,17 @@ Songs receive a weighted sum of five feature scores. The initial weights are:
 | Acousticness | 10% | Alignment with acoustic or non-acoustic preference |
 | Valence | 5% | Brightness preference inferred from the selected mood |
 
-The scorer ranks the complete catalog and returns the top `k` songs. This deterministic baseline makes individual contributions easy to explain, at the cost of limited personalization and a strong genre/mood preference.
+The standalone scorer ranks by similarity. The reliability engine checks the entire scored catalog, then ranks by requested preferences satisfied, using similarity only to break ties. Parser defaults can affect that tie-break but do not become validation requirements.
 
 ### Validation and fallback
 
-The validator extracts keyword-based constraints independently of the similarity score. Energy constraints determine whether each song passes; mood and acoustic mismatches appear in feedback but do not reduce the match rate. Genre is not validated.
+Each explicitly requested category counts as one equal-weight box. Repeated synonyms do not add weight. Genre must match its recognized label; mood can be exact or related through the existing mood groups. Energy must meet all requested bounds. Acoustic preference uses the existing acousticness threshold of 0.60. For example, “acoustic jazz” checks jazz genre and acousticness, without requiring the genre label “acoustic.”
 
-The field named `confidence` is the fraction of returned songs that pass these energy checks. **It is a rule-based compliance metric, not a calibrated probability of user satisfaction.** Requests without recognized energy constraints can receive 100% even when other preferences are unmet.
+The field named `confidence` is the fraction of returned songs satisfying **all** recognized requested categories. `preference_coverage` measures the fraction of boxes satisfied across those songs. A playlist can have no complete matches while still satisfying most preferences. Neither measure is a calibrated probability of satisfaction. Requests with no recognized preferences retain the prior nonempty-result match-rate convention of 100%, accompanied by an explicit “no recognized preferences” explanation.
+
+Every round retains the full top-k result, weights, validation details, and match quality. Final selection compares complete-match count, then total boxes satisfied, then similarity under the unchanged default weights so comparisons use a common scale. Exact ties retain the earlier round. The final result always uses the best recorded attempt, even above the low-confidence threshold. Each round uses its applied weights for within-round similarity tie-breaking and score explanations.
+
+Checking the entire catalog already maximizes complete matches and box counts for the available songs. Retries can change similarity tie-breaks; they cannot create missing complete matches or override the preference ordering. Diagnostics count matches with the same checks used for ranking and validation. Both CLI modes expose per-song compromises.
 
 Default controls are configurable through `process_user_request()`:
 
@@ -106,22 +109,22 @@ Default controls are configurable through `process_user_request()`:
 | `k` | 5 | Maximum number of recommendations |
 | `min_match_rate` | 0.70 | Trigger retries below this match rate |
 | `max_iterations` | 3 | Bound the number of retry attempts |
-| `min_acceptable_confidence` | 0.40 | Use best-attempt fallback and diagnostics below this rate |
+| `min_acceptable_confidence` | 0.40 | Attach low-confidence diagnostics below this rate |
 
-A result at exactly 40% does not trigger fallback. Results between 40% and 70% can be returned after retries are exhausted.
+A result at exactly 40% does not trigger low-confidence diagnostics. Best-attempt selection applies at every confidence level. Results below the target can still be returned as partial matches after retries are exhausted.
 
 ## Reproducible examples
 
 These results were checked against the bundled 100-song catalog with the default parameters:
 
-| Request | Match rate | Retries | Fallback |
-| --- | ---: | ---: | --- |
-| “I want lofi music that is chill and relaxing, I like acoustic sounds” | 80% | 0 | No |
-| “I want happy music but I am tired and exhausted” | 40% | 3 | No |
-| “I want upbeat energetic pop music for my workout” | 80% | 2 | No |
-| “I want sleepy music” | 40% | 3 | No |
+| Request | Complete-match rate | Preference coverage | Retries | Selected round |
+| --- | ---: | ---: | ---: | ---: |
+| “I want lofi music that is chill and relaxing, I like acoustic sounds” | 0% | 75.0% | 3 | 0 |
+| “I want happy music but I am tired and exhausted” | 80% | 90.0% | 0 | 0 |
+| “I want upbeat energetic pop music for my workout” | 60% | 86.7% | 3 | 0 |
+| “I want sleepy music” | 100% | 100.0% | 0 | 0 |
 
-For the lofi request, the top three songs are **Night Changes** (0.549), **A Drop in the Ocean** (0.549), and **I Won't Give Up** (0.548). This catalog retains the source's `study` category rather than relabeling it as lofi, so there are no exact lofi genre matches. The 80% match rate reflects energy compliance, not genre fulfillment.
+The lofi request has no complete matches because the catalog has no lofi-tagged tracks. Its top three partial matches are **A Drop in the Ocean** (0.549), **I Won't Give Up** (0.548), and **Collide - Acoustic Version** (0.546). Each satisfies mood, energy, and acousticness while missing genre: 75% preference coverage and 0% complete-match rate. The source's `study` category remains distinct from lofi.
 
 These examples demonstrate control flow and current behavior; they are not a benchmark of listener satisfaction or evidence of improvement from retrying.
 
@@ -131,9 +134,9 @@ These examples demonstrate control flow and current behavior; they are not a ben
 python -m pytest tests/ -v
 ```
 
-The repository contains 33 test functions covering score ordering, keyword extraction, preference parsing, validation feedback, conflict detection, weight normalization, retry limits, and orchestration outputs. The tests are organized by component to make regressions easier to localize.
+The repository contains 47 test functions covering score ordering, keyword extraction, preference parsing, validation feedback, conflict detection, weight normalization, retry limits, and orchestration outputs. The tests are organized by component to make regressions easier to localize.
 
-Regression tests verify unchanged default scores, custom-weight ranking changes and explanations, improved energy compliance on a controlled retry example, and the path that returns results without retrying.
+Regression tests cover every validation category, related moods, synonym consolidation, complete matches outside the similarity top-k, partial-match ordering, default-profile exclusion, retry weight application, and preservation of earlier results even above the diagnostic threshold. They also check empty catalogs and consistent diagnostic counts.
 
 ## Project structure
 
@@ -159,7 +162,7 @@ The [catalog notes](data/README.md) document the source, selection policy, appro
 The [model card](model_card.md) documents the scoring rules, metric semantics, catalog constraints, and evaluation gaps. The main priorities are:
 
 1. Evaluate retry behavior across a broader range of requests and catalog distributions.
-2. Define explicit hard and soft intent constraints, then align validation and diagnostics with that policy.
+2. Evaluate whether users need explicit priority controls beyond the current equal-category policy.
 3. Improve parsing for negation, ambiguous requests, and unsupported vocabulary.
 4. Evaluate relevance and catalog coverage on a larger, documented dataset with human feedback.
 

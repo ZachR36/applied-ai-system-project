@@ -165,7 +165,7 @@ def interactive_mode(songs) -> None:
                 print(f"{rank}. {song.title} by {song.artist}")
                 print(f"   Genre: {song.genre} | Mood: {song.mood} | Energy: {song.energy:.2f}")
                 print(f"   ⭐ Score: {score:.3f} / 1.000")
-                print(f"   Why: {reasons[0] if reasons else 'Good match!'}")
+                print(f"   Preference checks: {result.validation.reasons[rank - 1]}")
                 print()
 
             print(f"Confidence Level: {result.confidence:.1%}")

@@ -17,7 +17,7 @@ Energy, tempo, valence, danceability, and acousticness are copied unchanged from
 
 The catalog contains ten tracks in each category: pop, rock, metal, jazz, classical, acoustic, country, electronic, hip-hop, and study. Artist pools were curated to avoid obvious cross-genre tagging errors. Within each pool, the highest source-popularity recording was selected, with track ID breaking ties. Acoustic selections additionally require source acousticness above 0.60.
 
-Genre labels are broad catalog categories, not an exhaustive musical taxonomy. Most retain the source label; rock recordings by Foo Fighters, Guns N' Roses, Nirvana, Red Hot Chili Peppers, Radiohead, and Queen may come from other source categories and are assigned to rock. The original tag remains in `song_sources.csv`. Jazz includes vocal jazz and crossover recordings; classical includes contemporary piano. The source's `study` category is retained rather than assuming every recording is lofi. The current parser does not recognize `study` as a genre.
+Genre labels are broad catalog categories, not an exhaustive musical taxonomy. Most retain the source label; rock recordings by Foo Fighters, Guns N' Roses, Nirvana, Red Hot Chili Peppers, Radiohead, and Queen may come from other source categories and are assigned to rock. The original tag remains in `song_sources.csv`. Jazz includes vocal jazz and crossover recordings; classical includes contemporary piano. The source's `study` category is retained rather than assuming every recording is lofi. The parser recognizes `study` as a genre; it is not automatically equated with lofi.
 
 This is a curated demonstration subset, not a representative sample of music consumption or a recommendation-quality benchmark. Source popularity is used only for selection and is not a current popularity claim.
 
@@ -50,4 +50,4 @@ The replacement was checked for exactly 100 rows, unique IDs, unique title/artis
 
 All 29 existing test functions passed when invoked directly. They construct independent fixtures rather than reading `songs.csv`; this check did not use the pytest runner. Catalog replacement changes CLI demonstrations and documented examples, which were rerun. Any future tests of catalog-specific IDs, titles, rankings, or confidence values must use the new catalog explicitly.
 
-The catalog includes 50 recordings with energy at or below 0.45 and 29 at or below 0.30. Their presence does not guarantee that scoring places them in the top five. Adaptive retries now apply adjusted weights, but ranking still balances energy with other features.
+The catalog includes 50 recordings with energy at or below 0.45 and 29 at or below 0.30. The reliability engine now checks the full catalog and ranks explicit preference coverage before similarity. For a sleepy-only request, tracks meeting the energy bound take priority over default genre/mood preferences. Requests combining additional categories can still have few complete matches.

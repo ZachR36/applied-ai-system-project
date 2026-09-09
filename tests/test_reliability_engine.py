@@ -155,7 +155,7 @@ def test_reliability_engine_returns_formatted_log():
     assert "Match Rate" in log or "Confidence" in log or "Final" in log
 
 
-def test_retry_applies_weights_and_improves_energy_compliance():
+def test_retry_applies_weights_and_retains_earlier_partial_match():
     from math import isclose
     from src.recommender import score_song
     songs = [
@@ -164,18 +164,24 @@ def test_retry_applies_weights_and_improves_energy_compliance():
     ]
     request = "happy pop but tired"
     engine = ReliabilityEngine(songs)
-    baseline = engine.process_user_request(request, k=1, max_iterations=0)
-    assert baseline.recommendations[0][0].id == 1
-    assert baseline.final_match_rate == 0.
     result = engine.process_user_request(request, k=1)
-    assert result.recommendations[0][0].id == 2
-    assert result.final_match_rate == 1.
-    assert 1 <= len(result.optimization_steps) <= 3
-    assert result.best_attempt_used is False
-    applied = result.optimization_steps[-1]['weights']
-    expected, reasons = score_song(engine.parser.parse(request), songs[1], weights=applied)
-    assert isclose(result.recommendations[0][1], expected)
-    assert result.recommendations[0][2] == reasons
+    assert len(result.attempt_history) == 4
+    assert result.attempt_history[0]['recommendations'][0][0].id == 1
+    assert result.attempt_history[-1]['recommendations'][0][0].id == 2
+    # Both satisfy two of three preferences. Neither is a complete match.
+    assert all(a['match_rate'] == 0. for a in result.attempt_history)
+    assert all(isclose(a['preference_coverage'], 2 / 3) for a in result.attempt_history)
+    assert result.selected_iteration == 0
+    assert result.recommendations[0][0].id == 1
+    for attempt in result.attempt_history:
+        song, score, reasons = attempt['recommendations'][0]
+        expected, expected_reasons = score_song(engine.parser.parse(request), song, weights=attempt['weights'])
+        assert isclose(score, expected)
+        assert reasons == expected_reasons
+    # Mutating the returned result must not overwrite historical evidence.
+    result.recommendations[0][2].append("external change")
+    assert "external change" not in result.attempt_history[0]['recommendations'][0][2]
+    assert result.attempt_history[0]['weights'] != result.attempt_history[-1]['weights']
 
 
 def test_passing_validation_does_not_adjust_weights():
@@ -185,3 +191,89 @@ def test_passing_validation_does_not_adjust_weights():
     result = engine.process_user_request(request, k=1)
     assert result.optimization_steps == []
     assert result.recommendations == recommend_songs(engine.parser.parse(request), engine.songs, k=1)
+
+
+def test_complete_match_outside_similarity_top_k_is_selected():
+    from src.recommender import recommend_songs
+    songs = [
+        Song(1, "Nearly acoustic", "A", "pop", "happy", .4, 80, 1., .5, .59),
+        Song(2, "All preferences", "B", "pop", "happy", .1, 80, 0., .5, .61),
+    ]
+    request = 'happy pop tired acoustic'
+    engine = ReliabilityEngine(songs)
+    assert recommend_songs(engine.parser.parse(request), songs, k=1)[0][0].id == 1
+    result = engine.process_user_request(request, k=1)
+    assert result.recommendations[0][0].id == 2
+    assert result.final_match_rate == 1.
+    assert result.optimization_steps == []
+
+
+def test_partial_matches_rank_by_boxes_before_similarity():
+    from src.recommender import recommend_songs
+    songs = [
+        Song(1, "Two boxes", "A", "pop", "happy", .8, 100, 1., .5, .59),
+        Song(2, "Three boxes", "B", "jazz", "happy", .4, 80, 0., .5, .61),
+    ]
+    engine = ReliabilityEngine(songs)
+    request = 'happy pop tired acoustic'
+    assert recommend_songs(engine.parser.parse(request), songs, k=1)[0][0].id == 1
+    result = engine.process_user_request(request, k=2)
+    assert [song.id for song, _, _ in result.recommendations] == [2, 1]
+    assert [c.matched_count for c in result.validation.song_matches] == [3, 2]
+    assert result.validation.preference_coverage == 5 / 8
+    assert result.final_match_rate == 0.
+
+
+def test_complete_matches_then_partial_fill_when_fewer_than_k_exist():
+    songs = [
+        Song(1, "Full", "A", "pop", "happy", .4, 80, .8, .5, .8),
+        Song(2, "Partial", "B", "pop", "happy", .9, 100, .8, .5, .8),
+        Song(3, "Other", "C", "jazz", "melancholic", .9, 100, .1, .5, .1),
+    ]
+    result = ReliabilityEngine(songs).process_user_request('happy pop tired acoustic', k=5)
+    assert len(result.recommendations) == 3
+    assert [c.matched_count for c in result.validation.song_matches] == [4, 3, 0]
+    assert result.validation.total_matches == 1
+    assert result.final_match_rate == 1 / 3
+    assert result.confidence_low_reason.startswith('1 of 3 catalog songs')
+
+
+def test_unspecified_profile_defaults_are_not_requirements():
+    song = Song(1, "Quiet jazz", "A", "jazz", "melancholic", .2, 70, .2, .2, .9)
+    base = UserProfile('pop', 'happy', .8, False)
+    result = ReliabilityEngine([song]).process_user_request('tired', base_profile=base, k=1)
+    check = result.validation.song_matches[0]
+    assert check.matched_preferences == ['energy']
+    assert check.total_preferences == 1
+    assert result.final_match_rate == 1.
+
+
+def test_earlier_round_can_win_even_above_fallback_threshold():
+    songs = [
+        Song(1, "Full", "A", "pop", "happy", .4, 80, .8, .5, .2),
+        Song(2, "Loud pop", "B", "pop", "happy", .9, 100, .8, .5, .2),
+        Song(3, "Quiet jazz", "C", "jazz", "happy", .4, 80, .8, .5, .2),
+    ]
+    result = ReliabilityEngine(songs).process_user_request('happy pop tired', k=2)
+    assert result.final_match_rate == .5
+    assert result.confidence_low_reason is None
+    assert result.selected_iteration == 0
+    assert result.best_attempt_used
+    assert [s.id for s, _, _ in result.recommendations] == [1, 2]
+    assert [s.id for s, _, _ in result.attempt_history[-1]['recommendations']] == [1, 3]
+
+
+def test_full_match_and_diagnostics_share_related_mood_policy():
+    song = Song(1, "Quiet", "A", "jazz", "relaxed", .2, 70, .4, .3, .8)
+    engine = ReliabilityEngine([song])
+    result = engine.process_user_request('chill jazz acoustic', k=1)
+    assert result.final_match_rate == 1.
+    assert engine._diagnose_low_confidence('chill jazz acoustic', result.recommendations, result.validation).startswith('1 of 1')
+
+
+def test_empty_catalog_retains_an_evaluable_attempt():
+    result = ReliabilityEngine([]).process_user_request('happy jazz', max_iterations=0)
+    assert result.recommendations == []
+    assert result.final_match_rate == 0.
+    assert len(result.attempt_history) == 1
+    assert 'empty' in result.confidence_low_reason
