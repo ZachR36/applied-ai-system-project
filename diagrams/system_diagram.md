@@ -58,3 +58,7 @@ flowchart TD
 Tests cover complete matches below the similarity cutoff, equal-category partial ranking, related moods, independent failure of each category, repeated keywords, contradictory energy constraints, historical snapshots, earlier-round retention above the diagnostic threshold, empty results, shared diagnostic checks, confirmation gates, persistent edits, exclusion filtering, alternatives, unsupported wording, and cancellation. See the [model card](../model_card.md) for metric interpretation and remaining language limitations.
 
 Diagnostic counts use the same song checks as validation. Messages distinguish empty catalogs, no complete matches, insufficient complete matches for the requested count, and enough complete matches. Complete, partial, and zero-preference alternatives are counted separately. Scarcity alone is never labeled a contradiction.
+
+## Web interface
+
+`app.py` wraps the same engine with a welcome screen, collapsible demo, and text/structured preference entry. Dropdowns and an energy range slider build an editable draft. Explicit clarification and confirmation gate scoring; results render match rates, per-song checks, similarity explanations, and retry history. Results are stored separately for demo and personal inputs and hidden when the input changes.

@@ -4,6 +4,8 @@
 
 GrooveMatch is a deterministic content-based music recommender with a separate intent-validation and fallback pipeline. It uses manually specified scoring rules and keyword mappings; there is no trained model, LLM inference, or collaborative filtering.
 
+A Streamlit interface offers natural-language input, structured dropdowns and an energy range slider, an optional demo, and per-song match explanations. Both input modes use the existing confirmation and scoring pipeline. Acousticness retains the engine’s categorical preference/exclusion choices; tempo and danceability are not selectable ranking criteria.
+
 Its intended use is local experimentation with recommendation scoring, explainability, and reliability mechanisms. Recommendations are generated from the included catalog rather than a streaming-service integration.
 
 ## Data
@@ -17,7 +19,7 @@ Scoring uses genre, mood, energy, acousticness, and valence. Tempo and danceabil
 
 The catalog is a curated subset of the Spotify Tracks Dataset, with unchanged source-reported numeric features and approximate project-assigned mood labels. The [catalog notes](data/README.md) document the source, selection and annotation policies; `data/song_sources.csv` preserves recording identifiers and original genre tags. It is a demonstration catalog, not evidence of representative music coverage. There is no training/test split because the system does not train on these records.
 
-## Scoring and parsing
+## Similarity scoring
 
 The score combines genre (0.40), mood (0.30), energy (0.15), acousticness (0.10), and valence (0.05). Exact genre matches receive full genre credit; mood groups allow partial matches. Energy uses distance from the target, and acousticness and valence are mapped to preferences.
 
@@ -27,7 +29,7 @@ Text seeds an editable draft; it never directly triggers scoring. The parser use
 
 Contradictory energy bounds, simultaneous inclusion/exclusion, ambiguous conjunctions, mixed-field negation/OR, unsupported vocabulary, and artist-reference requests require clarification. This is a conservative rule-based parser, not general language understanding. Conditional language, complex boolean expressions, cultural references, artist similarity, and free-text importance rules are not reliably interpreted; users must use the structured editors or explicitly omit unsupported wording.
 
-Every request, even an unambiguous one, must be confirmed. The CLI exposes numbered editors for each field and preserves the rest of the draft. Unresolved questions block confirmation. The API raises `PreferenceReviewRequired` when no confirmation is supplied. `draft.confirm()` creates an immutable snapshot only after unresolved issues are cleared; callers should invoke it only in response to explicit user confirmation. This is an application workflow contract, not an authentication mechanism.
+Structured selection bypasses text parsing but uses the same editable draft, validation rules, and confirmation gate. Every request, even an unambiguous one, must be confirmed. The web UI exposes editable fields, explicit ambiguity-resolution controls, and an Enter button that confirms before scoring. Changes hide stale results until reconfirmed. The CLI exposes numbered editors for each field and preserves the rest of the draft. Unresolved questions block confirmation. The API raises `PreferenceReviewRequired` when no confirmation is supplied. `draft.confirm()` creates an immutable snapshot only after unresolved issues are cleared; callers should invoke it only in response to explicit user confirmation. This is an application workflow contract, not an authentication mechanism.
 
 Scoring and retries use the confirmed snapshot. Allowed alternatives influence similarity through the first selected value; validation accepts any allowed alternative, and the review displays their order. Energy targets are clamped within the confirmed range. Unspecified similarity fields use the supplied profile or the existing defaults; they do not become requirements. Explicit exclusions filter candidates before scoring and are never relaxed, even to fill the requested count.
 
@@ -49,11 +51,22 @@ For evaluated requests, the engine retries below a complete-match rate of 0.70, 
 
 The final selection compares complete-match count, total satisfied boxes, and default-weight similarity, in that order. An unevaluated request records one scoring attempt with `evaluated=False` and `quality=None`; it is never compared as a validated candidate. The fixed comparison weights prevent a score increase caused solely by changing weights from being mistaken for an improvement. Exact ties preserve the earlier attempt. Best-attempt selection is unconditional; below 0.40, diagnostic context is attached as well. The selected round is available as `selected_iteration`.
 
-Full-catalog preference ranking already finds the maximum available complete matches and category coverage. Weight adjustment only affects similarity tie-breaks and cannot create missing content. The existing optimizer policy is retained. Diagnostics use the same per-song predicate as validation. They distinguish an empty catalog, zero complete matches, and fewer complete matches than the requested result count. Returned counts separately report complete matches, partial matches satisfying at least one category, and alternatives satisfying none. A small catalog or scarce matches does not establish that the request is contradictory. These explanations are shown in both CLI modes only under the existing diagnostic policy; the 0.40 boundary remains strict.
+Full-catalog preference ranking already finds the maximum available complete matches and category coverage. Weight adjustment only affects similarity tie-breaks and cannot create missing content. The optimizer adjusts similarity weights using the confirmed energy, acousticness, and mood constraints. Diagnostics use the same per-song predicate as validation. They distinguish an empty catalog, zero complete matches, and fewer complete matches than the requested result count. Returned counts separately report complete matches, partial matches satisfying at least one category, and alternatives satisfying none. A small catalog or scarce matches does not establish that the request is contradictory. The web interface and both CLI modes display these diagnostics when the configured threshold triggers them; the 0.40 boundary remains strict. Per-song matched/missed checks are available at every evaluated match rate.
+
+### Configurable engine controls
+
+| Parameter | Default | Meaning |
+| --- | ---: | --- |
+| `k` | 5 | Maximum returned songs; the web interface exposes 1–10 |
+| `min_match_rate` | 0.70 | Retry only below this complete-match rate |
+| `max_iterations` | 3 | Maximum retries after the initial scoring round |
+| `min_acceptable_confidence` | 0.40 | Legacy name for the diagnostic threshold, not a probability |
+
+The web interface uses the default retry and diagnostic settings. With fewer eligible songs than requested, match metrics use the number returned, not `k`. A nonempty catalog can produce an empty result when all songs are explicitly excluded; exclusions are never relaxed to avoid that outcome.
 
 ## Evaluation evidence
 
-Four requests were executed against the included catalog with `k=5` and default thresholds:
+The following reproducible API examples use the included catalog, confirmed parsed preferences without edits, `k=5`, and default thresholds. Structured selections may produce different results when different preferences are confirmed:
 
 | Request | Complete-match rate | Preference coverage | Retries | Selected round |
 | --- | ---: | ---: | ---: | ---: |
@@ -62,7 +75,13 @@ Four requests were executed against the included catalog with `k=5` and default 
 | I want upbeat energetic pop music for my workout | 0.60 | 0.867 | 3 | 0 |
 | I want sleepy music | 1.00 | 1.000 | 0 | 0 |
 
-The repository also includes 163 pytest test cases (including parameterized inputs) across scoring, validation, optimization helpers, and orchestration. These checks do not constitute an evaluation of recommendation quality with real listeners. No measured quality uplift, latency benchmark, demographic fairness result, or production-scale evaluation is claimed.
+The repository also includes 186 pytest test cases (including parameterized inputs) across scoring, validation, optimization helpers, orchestration, CSV ingestion, CLI navigation, and Streamlit interactions. Web tests exercise both input modes, explicit confirmation and clarification, stale-result handling, exclusion filtering, demo isolation, and session edits. These checks do not constitute an evaluation of recommendation quality with real listeners. No measured quality uplift, latency benchmark, demographic fairness result, or production-scale evaluation is claimed.
+
+## Session state and data handling
+
+Preference edits and result snapshots are kept in per-user Streamlit session state. Demo and personal results are separate. There is no account system or persistent playlist storage. Switching input modes preserves field edits within a session. Changing preferences hides previously computed results until reconfirmation; changing request wording requires a new review. The interface loads the catalog relative to `app.py`, so it does not depend on the launch directory.
+
+The recommendation engine makes no external music-service or LLM API calls. Streamlit runs a web server; browser requests are handled by that server. Local use does not provide authentication or a hosted-service privacy guarantee. Decision logs include raw request text and confirmed preferences, so saving or sharing those logs can disclose user input.
 
 ## Reliability and coverage considerations
 
@@ -70,8 +89,8 @@ The repository also includes 163 pytest test cases (including parameterized inpu
 - **Ranking bias:** Genre and mood initially account for 70% of similarity, affecting tie-breaks among equally compliant songs. Explicit preferences take precedence over this score.
 - **Metric scope:** Complete-match rate covers recognized categories, not arbitrary language or subjective musical taste. Approximate mood annotations and rigid energy thresholds remain limitations. Common exclusions are supported, while artist similarity, complex language, and explicit importance instructions still require structured clarification or explicit omission.
 - **Observability:** Returned decision logs expose parsed preferences, attempts, and validation feedback. They are in-memory output rather than a persistent monitoring system.
-- **Privacy:** The pipeline runs locally and contains no external API calls or persistent user-profile store. Decision logs include the user's raw request, which matters if callers later save or share them.
-- **Personalization:** Requests are independent; the system does not learn from listening history, skips, or ratings.
+- **Personalization:** The system does not learn from listening history, skips, or ratings. Saved session edits are interface state, not learned preferences.
+- **Product scope:** No audio playback, account management, persistent playlist storage, or streaming-service integration is implemented.
 
 ## Improvement priorities
 

@@ -212,17 +212,40 @@ def main() -> None:
     print("  5. Explains its reasoning transparently")
     print("=" * 70)
 
-    # Test with predefined profiles using natural language requests
-    print("\n\n📌 DEMO MODE: Testing with predefined user profiles\n")
-    for profile_name, user_request in USER_REQUESTS.items():
-        display_recommendations_with_reliability(profile_name, user_request, songs, k=5)
-        input("\n(Press Enter to see next user profile...)")
+    try:
+        while True:
+            choice = input("\nStart: 1 get recommendations, 2 view demo, q quit > ").strip().lower()
+            if choice in ['q', 'quit', 'exit']:
+                return
+            if choice == '1':
+                interactive_mode(songs)
+                return
+            if choice == '2':
+                break
+            print("Choose 1 for recommendations, 2 for the demo, or q to quit.")
 
-    # Ask if user wants to try interactive mode
-    print("\n" + "=" * 70)
-    response = input("\nWould you like to try interactive mode? (y/n) > ").strip().lower()
-    if response in ['y', 'yes']:
-        interactive_mode(songs)
+        print("\n📌 DEMO MODE")
+        print("After each profile: r leaves the demo for recommendations; q quits.")
+        print("During preference review, x cancels the current profile and opens those options.")
+        profiles = list(USER_REQUESTS.items())
+        for index, (profile_name, user_request) in enumerate(profiles):
+            display_recommendations_with_reliability(profile_name, user_request, songs, k=5)
+            last_profile = index == len(profiles) - 1
+            while True:
+                prompt = ("\nDemo complete: r get recommendations, q quit > " if last_profile else
+                          "\nEnter for next profile, r get recommendations, q quit > ")
+                choice = input(prompt).strip().lower()
+                if choice in ['q', 'quit', 'exit']:
+                    return
+                if choice == 'r':
+                    interactive_mode(songs)
+                    return
+                if not choice and not last_profile:
+                    break
+                print("Choose r for recommendations or q to quit." if last_profile else
+                      "Press Enter for the next profile, r for recommendations, or q to quit.")
+    except (EOFError, KeyboardInterrupt):
+        print("\nGoodbye!")
 
 
 if __name__ == "__main__":

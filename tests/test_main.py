@@ -60,7 +60,7 @@ def test_full_demo_requires_confirmation_for_each_request():
     from src.main import main, USER_REQUESTS
     song = Song(1, 'Demo', 'A', 'pop', 'happy', .4, 80, .7, .5, .8)
     output = StringIO()
-    actions = [action for _ in USER_REQUESTS for action in ['c', '']] + ['n']
+    actions = ['2'] + [action for _ in list(USER_REQUESTS)[:-1] for action in ['c', '']] + ['c', 'q']
     with patch('src.main.load_songs', return_value=[song]), \
          patch('builtins.input', side_effect=actions), redirect_stdout(output):
         main()
