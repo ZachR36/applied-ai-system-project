@@ -159,9 +159,11 @@ These examples demonstrate control flow and current behavior; they are not a ben
 python -m pytest tests/ -v
 ```
 
-The repository contains 83 test functions covering score ordering, keyword extraction, preference parsing, validation feedback, conflict detection, weight normalization, retry limits, and orchestration outputs. The tests are organized by component to make regressions easier to localize.
+The repository contains 163 pytest test cases (including parameterized inputs) covering score ordering, keyword extraction, preference parsing, validation feedback, conflict detection, weight normalization, retry limits, and orchestration outputs. The tests are organized by component to make regressions easier to localize.
 
 Regression tests cover every validation category, related moods, synonym consolidation, complete matches outside the similarity top-k, partial-match ordering, default-profile exclusion, retry weight application, and preservation of earlier results even above the diagnostic threshold. They also check empty catalogs, consistent diagnostics, unevaluated requests, and both CLI modes. Review tests verify confirmation before scoring, explicit exclusions, OR alternatives, clarification of contradictions/unsupported wording, persistent field edits, immutable snapshots, and cancellation without scoring.
+
+Additional edge-case tests cover CSV numeric boundaries and malformed records, multiline CSV record numbering, interrupted and invalid field edits, confirmation snapshot isolation, exact retry thresholds, zero retry budgets, fully excluded catalogs, exclusions throughout retries, independent request history, and CLI startup failures. Tests use synthetic catalogs rather than relying on the bundled song selection.
 
 ## Project structure
 

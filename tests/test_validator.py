@@ -138,9 +138,12 @@ def test_validate_recommendations_conflicting_energy():
     # User wants both upbeat AND relaxing (conflicting)
     result = validate_recommendations("I want upbeat but I'm tired", recommendations)
 
-    # Should still match the ones that fit one or the other
-    assert result.match_rate >= 0.0
+    # A single energy value cannot satisfy both incompatible bounds.
+    assert result.match_rate == 0.0
+    assert result.preference_coverage == 0.25  # Happy pop still satisfies the mood box.
+    assert result.total_matches == 0
     assert result.total_songs == 2
+    assert all("energy" in check.missed_preferences for check in result.song_matches)
 
 
 def test_validation_result_has_reasons():

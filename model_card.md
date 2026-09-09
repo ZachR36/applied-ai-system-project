@@ -62,7 +62,7 @@ Four requests were executed against the included catalog with `k=5` and default 
 | I want upbeat energetic pop music for my workout | 0.60 | 0.867 | 3 | 0 |
 | I want sleepy music | 1.00 | 1.000 | 0 | 0 |
 
-The repository also includes 83 test functions across scoring, validation, optimization helpers, and orchestration. These checks do not constitute an evaluation of recommendation quality with real listeners. No measured quality uplift, latency benchmark, demographic fairness result, or production-scale evaluation is claimed.
+The repository also includes 163 pytest test cases (including parameterized inputs) across scoring, validation, optimization helpers, and orchestration. These checks do not constitute an evaluation of recommendation quality with real listeners. No measured quality uplift, latency benchmark, demographic fairness result, or production-scale evaluation is claimed.
 
 ## Reliability and coverage considerations
 
