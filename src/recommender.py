@@ -68,24 +68,28 @@ def load_songs(csv_path: str) -> List[Song]:
     print(f"Loaded {len(songs)} songs.")
     return songs
 
-def score_song(user_prefs: UserProfile, song: Song) -> Tuple[float, List[str]]:
+def score_song(user_prefs: UserProfile, song: Song, weights: Optional[Dict[str, float]] = None) -> Tuple[float, List[str]]:
     """
     Scores a single song against user preferences using the algorithm recipe.
     Returns (total_score, list_of_reasons_for_scoring).
+    Omitted weights preserve the original 40/30/15/10/5 weighting.
     """
+    # Custom weights supply all five keys and should sum to 1.0.
+    if weights is None:
+        weights = {"genre": 0.40, "mood": 0.30, "energy": 0.15, "acoustic": 0.10, "valence": 0.05}
     reasons = []
 
-    # Genre score (40% weight)
+    # Genre score
     if song.genre.lower() == user_prefs.favorite_genre.lower():
         genre_score = 1.0
-        genre_contrib = genre_score * 0.40
+        genre_contrib = genre_score * weights["genre"]
         reasons.append(f"✓ Genre match: {song.genre} (+{genre_contrib:.2f})")
     else:
         genre_score = 0.0
         genre_contrib = 0.0
         reasons.append(f"✗ Genre mismatch: {song.genre} vs {user_prefs.favorite_genre} (+{genre_contrib:.2f})")
 
-    # Mood score (30% weight)
+    # Mood score
     if song.mood.lower() == user_prefs.favorite_mood.lower():
         mood_score = 1.0
         mood_desc = "exact match"
@@ -96,15 +100,15 @@ def score_song(user_prefs: UserProfile, song: Song) -> Tuple[float, List[str]]:
         mood_score = 0.1
         mood_desc = "different"
 
-    mood_contrib = mood_score * 0.30
+    mood_contrib = mood_score * weights["mood"]
     reasons.append(f"{'✓' if mood_score >= 0.5 else '~' if mood_score > 0.1 else '✗'} Mood {mood_desc}: {song.mood} (+{mood_contrib:.2f})")
 
-    # Energy score (15% weight) - continuous distance score
+    # Energy score - continuous distance score
     energy_score = 1.0 - abs(user_prefs.target_energy - song.energy)
-    energy_contrib = energy_score * 0.15
+    energy_contrib = energy_score * weights["energy"]
     reasons.append(f"Energy closeness: {song.energy:.2f} vs target {user_prefs.target_energy:.2f} (+{energy_contrib:.2f})")
 
-    # Acoustic score (10% weight)
+    # Acoustic score
     if user_prefs.likes_acoustic:
         acoustic_score = song.acousticness
         acoustic_label = "acoustic preference"
@@ -112,10 +116,10 @@ def score_song(user_prefs: UserProfile, song: Song) -> Tuple[float, List[str]]:
         acoustic_score = 1.0 - song.acousticness
         acoustic_label = "non-acoustic preference"
 
-    acoustic_contrib = acoustic_score * 0.10
+    acoustic_contrib = acoustic_score * weights["acoustic"]
     reasons.append(f"Acoustic: {song.acousticness:.2f} ({acoustic_label}) (+{acoustic_contrib:.2f})")
 
-    # Valence score (5% weight) - depends on mood
+    # Valence score - depends on mood
     if user_prefs.favorite_mood.lower() in ['happy', 'energetic', 'playful']:
         valence_score = song.valence
         valence_label = "bright/happy"
@@ -126,16 +130,16 @@ def score_song(user_prefs: UserProfile, song: Song) -> Tuple[float, List[str]]:
         valence_score = 0.5
         valence_label = "neutral"
 
-    valence_contrib = valence_score * 0.05
+    valence_contrib = valence_score * weights["valence"]
     reasons.append(f"Valence: {song.valence:.2f} ({valence_label} for {user_prefs.favorite_mood}) (+{valence_contrib:.2f})")
 
     # Weighted total score
     total_score = (
-        (genre_score * 0.40) +
-        (mood_score * 0.30) +
-        (energy_score * 0.15) +
-        (acoustic_score * 0.10) +
-        (valence_score * 0.05)
+        (genre_score * weights["genre"]) +
+        (mood_score * weights["mood"]) +
+        (energy_score * weights["energy"]) +
+        (acoustic_score * weights["acoustic"]) +
+        (valence_score * weights["valence"])
     )
 
     return (total_score, reasons)
@@ -164,13 +168,14 @@ def _similar_mood(mood1: str, mood2: str) -> bool:
 
     return False
 
-def recommend_songs(user_prefs: UserProfile, songs: List[Song], k: int = 5) -> List[Tuple[Song, float, List[str]]]:
+def recommend_songs(user_prefs: UserProfile, songs: List[Song], k: int = 5, weights: Optional[Dict[str, float]] = None) -> List[Tuple[Song, float, List[str]]]:
     """
     Scores all songs and returns the top k recommendations sorted by score (highest first).
+    Optional weights are passed to every score calculation.
     Expected return format: [(song, score, reasons), ...]
     """
     scored_songs = [
-        (song, *score_song(user_prefs, song))
+        (song, *score_song(user_prefs, song, weights=weights))
         for song in songs
     ]
 

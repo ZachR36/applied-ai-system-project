@@ -255,7 +255,7 @@ class ReliabilityEngine:
         decision_log.append("\n2️⃣ Scoring Songs (Default Weights)...")
         current_profile = parsed_profile
         current_weights = self.optimizer.DEFAULT_WEIGHTS.copy()
-        recommendations = recommend_songs(current_profile, self.songs, k=k)
+        recommendations = recommend_songs(current_profile, self.songs, k=k, weights=current_weights)
         decision_log.append(f"   Top {k} songs scored")
 
         # Step 3: Validate recommendations
@@ -294,9 +294,8 @@ class ReliabilityEngine:
 
                 current_weights = new_weights
 
-                # Re-score with new weights (note: we'd need to modify recommend_songs to accept weights)
-                # For now, just create a modified profile that hints at the new weights
-                recommendations = recommend_songs(current_profile, self.songs, k=k)
+                # Re-score using the adjusted weights while preserving the user profile.
+                recommendations = recommend_songs(current_profile, self.songs, k=k, weights=current_weights)
 
                 # Re-validate
                 validation = validate_recommendations(user_input, recommendations, keywords, constraints)

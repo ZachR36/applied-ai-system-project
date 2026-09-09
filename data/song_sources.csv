@@ -1,0 +1,101 @@
+id,spotify_track_id,source_row,source_genre,album,mood_method
+1,4LRPiXqCikLlN15c3yImP7,81052,pop,As It Was,approximate feature/style rule; see data/README.md
+2,6xGruZOHLs39ZbVccQTuPZ,81102,pop,Glimpse of Us,approximate feature/style rule; see data/README.md
+3,0mBP9X2gPCuapvpZ7TGDk3,81024,pop,Left and Right (Feat. Jung Kook of BTS),approximate feature/style rule; see data/README.md
+4,0VjIjW4GlUZAMYd2vXMi3b,81000,pop,After Hours,approximate feature/style rule; see data/README.md
+5,2eAvDnpXP5W0cVtiI0PUxV,81015,pop,Safe Haven,approximate feature/style rule; see data/README.md
+6,0T5iIrXA4p5GsubkhuBIKV,81050,pop,Until I Found You,approximate feature/style rule; see data/README.md
+7,0u2P5u6lvoDfwTYjAADbn4,81053,pop,lovely (with Khalid),approximate feature/style rule; see data/README.md
+8,5O2P9iiztwhomNh8xkR9lJ,81013,pop,FOUR (Deluxe),approximate feature/style rule; see data/README.md
+9,3rmo8F54jFF8OgYsqTxm5d,81354,pop,=,approximate feature/style rule; see data/README.md
+10,4ZtFanR9U6ndgddUvNcjcG,81702,pop,SOUR,approximate feature/style rule; see data/README.md
+11,5XeFesFbtLpXzIVDNQP22n,91001,rock,AM,approximate feature/style rule; see data/README.md
+12,2QjOHCTQ1Jl3zawyYOpxh6,91002,rock,I Love You.,approximate feature/style rule; see data/README.md
+13,0HqZX76SFLDz2aW8aiqi7G,91012,rock,Bones,approximate feature/style rule; see data/README.md
+14,3Wrjm47oTz2sjIgck11l5e,91013,rock,Chosen,approximate feature/style rule; see data/README.md
+15,5UWwZ5lm5PKu6eKsHAGxOk,2367,alt-rock,The Colour And The Shape,approximate feature/style rule; see data/README.md
+16,7o2CTH4ctstm8TNelqjb51,91111,rock,Appetite For Destruction,approximate feature/style rule; see data/README.md
+17,4CeeEOM32jQcH3eN9Q2dGj,91304,rock,Nevermind (Remastered),approximate feature/style rule; see data/README.md
+18,48UPSzbZjgc449aqz8bxox,91755,rock,Californication (Deluxe Edition),approximate feature/style rule; see data/README.md
+19,70LcF31zb1H0PyJoS1Sx1r,91453,rock,Pablo Honey,approximate feature/style rule; see data/README.md
+20,4u7EnebtmKWzUH433cf5Qv,91365,rock,A Night At The Opera (2011 Remaster),approximate feature/style rule; see data/README.md
+21,2MuWTIM3b0YEAskbeeFE1i,71052,metal,Master Of Puppets (Remastered),approximate feature/style rule; see data/README.md
+22,2DlHlPMa4M17kufBvI2lEN,71101,metal,Toxicity,approximate feature/style rule; see data/README.md
+23,61mWefnWQOLf90gepjOCb3,71225,metal,Vol. 3: The Subliminal Verses,approximate feature/style rule; see data/README.md
+24,7ACxUo21jtTHzy7ZEV56vU,71271,metal,Blizzard Of Ozz (40th Anniversary Expanded Edition),approximate feature/style rule; see data/README.md
+25,51c94ac31swyDQj9B3Lzs3,71407,metal,White Pony,approximate feature/style rule; see data/README.md
+26,2bPGTMB5sFfFYQ2YvSmup0,71418,metal,Rammstein,approximate feature/style rule; see data/README.md
+27,5anCkDvJ17aznvK5TED5uo,71226,metal,Hail to the King,approximate feature/style rule; see data/README.md
+28,4OROzZUy6gOWN4UGQVaZMF,71272,metal,Piece of Mind (2015 Remaster),approximate feature/style rule; see data/README.md
+29,3Jnxngdff0lVu2rza1GVx6,71223,metal,Paranoid,approximate feature/style rule; see data/README.md
+30,51TG9W3y9qyO8BY5RXKgnZ,71379,metal,Countdown To Extinction,approximate feature/style rule; see data/README.md
+31,1zNXF2svmdlNxfS5XeNUgr,64600,jazz,Come Away With Me (Super Deluxe Edition),approximate feature/style rule; see data/README.md
+32,1qCQTy0fTXerET4x8VHyr9,64050,jazz,What A Wonderful World,approximate feature/style rule; see data/README.md
+33,6Rqn2GFlmvmV4w9Ala0I1e,64509,jazz,I Put A Spell On You,approximate feature/style rule; see data/README.md
+34,4QxDOjgpYtQDxxbWPuEJOy,64501,jazz,L-O-V-E,approximate feature/style rule; see data/README.md
+35,3898C4AbdbptwYet6547e5,64725,jazz,The Girl From Ipanema - The Bossa Nova Years,approximate feature/style rule; see data/README.md
+36,30QD4VRP9yEneOh0eGTrtJ,64502,jazz,Solitude,approximate feature/style rule; see data/README.md
+37,0F845nujLVqCb0XMZCh5Pc,64507,jazz,Chet Baker Sings,approximate feature/style rule; see data/README.md
+38,1YQWosTIljIvxAgHWTp7KP,64714,jazz,Time Out,approximate feature/style rule; see data/README.md
+39,0E8q2Fx2XuzXCO2NSAppkR,64815,jazz,Duke Ellington & John Coltrane,approximate feature/style rule; see data/README.md
+40,0aWMVrwxPNYkKmFthzmpRi,64911,jazz,Kind Of Blue (Legacy Edition),approximate feature/style rule; see data/README.md
+41,5NGtFXVpXSvwunEIGeviY3,16471,classical,Erik Satie & Friends,approximate feature/style rule; see data/README.md
+42,0jOnZhF75V68VsBObWx2XO,16632,classical,Songs from the Arc of Life,approximate feature/style rule; see data/README.md
+43,3DNRdudZ2SstnDCVKFdXxG,16350,classical,"Beethoven: Piano Sonatas, Vol.3",approximate feature/style rule; see data/README.md
+44,17i5jLpzndlQhbS4SrTd0B,16418,classical,"Bach: Cello Suites Nos. 1, 5 & 6",approximate feature/style rule; see data/README.md
+45,5u5aVJKjSMJr4zesMPz7bL,16526,classical,Debussy: Clair De Lune and Other Piano Favourites,approximate feature/style rule; see data/README.md
+46,1VNvsvEsUpuUCbHpVop1vo,16529,classical,Chopin: Nocturnes,approximate feature/style rule; see data/README.md
+47,2xizRhme7pYeITbH1NLLGt,16527,classical,Tchaikovsky: Swan Lake,approximate feature/style rule; see data/README.md
+48,3Dgmyz32dxvtxvUTPS0CUI,16574,classical,"Vivaldi Variation (Arr. for Piano from Concerto for Strings in G Minor, RV 156)",approximate feature/style rule; see data/README.md
+49,429GaRIWKJ3EU1GAQPbLcr,16587,classical,"Mozart: Piano Concertos, Vol. 6",approximate feature/style rule; see data/README.md
+50,1BncfTJAWxrsxyT9culBrj,16050,classical,In A Time Lapse,approximate feature/style rule; see data/README.md
+51,5ivF4eQBqJiVL5IAE9jRyl,11,acoustic,Love Is a Four Letter Word,approximate feature/style rule; see data/README.md
+52,6lfxq3CG4xtTiEg7opyCyx,3,acoustic,Crazy Rich Asians (Original Motion Picture Soundtrack),approximate feature/style rule; see data/README.md
+53,5JDcQAztvZTIkrWoZihgvC,53,acoustic,The Bedroom Demos,approximate feature/style rule; see data/README.md
+54,3bHhUEOTIbezeZ856R0BX5,82,acoustic,Into The Wild (Music For The Motion Picture),approximate feature/style rule; see data/README.md
+55,4oa14QBfWRDfJy2agySy0L,58,acoustic,Little Voice,approximate feature/style rule; see data/README.md
+56,3PG6V5yuFfo4APiovOQoRv,119,acoustic,I Was Born To Love You,approximate feature/style rule; see data/README.md
+57,5rwq6R0Uq0BngM3rdmCeNg,126,acoustic,Stop All the World Now (Special Edition),approximate feature/style rule; see data/README.md
+58,12niARgkwxGsklcEwh6GlG,189,acoustic,"Hard Settle, Ain't Troubled",approximate feature/style rule; see data/README.md
+59,6NSlOEEtWlqvEFrjQsry77,196,acoustic,Say I Am You,approximate feature/style rule; see data/README.md
+60,72SPsHheqN6J3sI520jT9E,240,acoustic,Amos Lee,approximate feature/style rule; see data/README.md
+61,3WMj8moIAXJhHsyLaqIIHI,19350,country,Something in the Orange,approximate feature/style rule; see data/README.md
+62,5uU1uuyaUIBOiiUSQG7Wl3,19652,country,You Proof,approximate feature/style rule; see data/README.md
+63,4686eQ81DEswHa90bcdlC9,19853,country,Rock and A Hard Place,approximate feature/style rule; see data/README.md
+64,200x8ONbPfFzByUr3fVz46,19664,country,Stereotype,approximate feature/style rule; see data/README.md
+65,28n8z9IQKyjMPxmvYMBqZa,19710,country,The Kind of Love We Make,approximate feature/style rule; see data/README.md
+66,3fqwjXwUGN6vbzIwvyFMhx,19551,country,Traveller,approximate feature/style rule; see data/README.md
+67,69AIpwGNLxr4qS1X5ynx60,19656,country,Buy Dirt,approximate feature/style rule; see data/README.md
+68,4w3tQBXhn5345eUXDGBWZG,19751,country,9 To 5 And Odd Jobs,approximate feature/style rule; see data/README.md
+69,28cnXtME493VX9NOw9cIUh,19461,country,American IV: The Man Comes Around,approximate feature/style rule; see data/README.md
+70,79qxwHypONUt3AFq0WPpT9,19659,country,Golden Hour,approximate feature/style rule; see data/README.md
+71,2aJDlirz6v2a4HREki98cP,32151,electronic,Bicep,approximate feature/style rule; see data/README.md
+72,0U0ldCRmgCqhVvD6ksG63j,32051,electronic,Nightcall,approximate feature/style rule; see data/README.md
+73,67Hna13dNDkZvBpTXRIaOJ,32174,electronic,Mezzanine,approximate feature/style rule; see data/README.md
+74,3Ty7OTBNSigGEpeW2PqcsC,32251,electronic,Dummy,approximate feature/style rule; see data/README.md
+75,6zfczP87XO2SxWlQtnjFNa,32422,electronic,The English Riviera,approximate feature/style rule; see data/README.md
+76,0lYBSQXN6rCTvUZvg9S0lU,32004,electronic,Encore,approximate feature/style rule; see data/README.md
+77,10AsRVRdU07cMAFHeGYO3c,32084,electronic,Solo Dance,approximate feature/style rule; see data/README.md
+78,3OaunNUlXXs5e2PXtNAzzG,32169,electronic,NOVA,approximate feature/style rule; see data/README.md
+79,251aCFbFK1f4Jkil96E5g1,32090,electronic,Don’t Let Me Let Go (with ILLENIUM & EVAN GIIA),approximate feature/style rule; see data/README.md
+80,525GY0mXYnxajolwgS8Eaz,32083,electronic,Cooler Than Me,approximate feature/style rule; see data/README.md
+81,4C6Uex2ILwJi9sZXRdmqXp,51458,hip-hop,Super Freaky Girl,approximate feature/style rule; see data/README.md
+82,3F5CgOj3wFlRv51JsHbxhe,51203,hip-hop,"Honestly, Nevermind",approximate feature/style rule; see data/README.md
+83,27ZZdyTSQWI7Cug2d2PkqV,51060,hip-hop,BILLIE EILISH.,approximate feature/style rule; see data/README.md
+84,1DIXPcTDzTj8ZMHt3PDt8p,51101,hip-hop,Gangsta's Paradise,approximate feature/style rule; see data/README.md
+85,59nOXPmaKlBfGMDeOVGrIK,51751,hip-hop,I NEVER LIKED YOU,approximate feature/style rule; see data/README.md
+86,7lQ8MOhq6IN2w8EYcFNSUk,51159,hip-hop,The Eminem Show,approximate feature/style rule; see data/README.md
+87,68Dni7IE4VyPkTOH9mRWHr,51450,hip-hop,2014 Forest Hills Drive,approximate feature/style rule; see data/README.md
+88,7KXjTSCq5nL1LoYtL7XAwS,51500,hip-hop,DAMN.,approximate feature/style rule; see data/README.md
+89,0Z2J91b2iTGLVTZC4fKgxf,37152,funk,Greatest Hits,approximate feature/style rule; see data/README.md
+90,0trHOzAhNpGCsGBEu7dOJo,48058,hardcore,Illmatic,approximate feature/style rule; see data/README.md
+91,3jNkhv4Hn6MnogaKf6qJMk,105015,study,As The Curtain Falls,approximate feature/style rule; see data/README.md
+92,0CQq9NEFcGNi3FMxpMKwj4,105033,study,Shoreditch,approximate feature/style rule; see data/README.md
+93,1oQt6kTiuPsQEFaHWFH6Pl,105026,study,Neon Tapestries,approximate feature/style rule; see data/README.md
+94,0PMlGvzeLrQ27h8oGyfGMV,105030,study,Post It Beats Pt.1,approximate feature/style rule; see data/README.md
+95,16N0uGSoGeW41PrPCEnh8T,105036,study,Chapman,approximate feature/style rule; see data/README.md
+96,0w1Bmnum1Fk0Unjy5Ok2ov,105021,study,Youth,approximate feature/style rule; see data/README.md
+97,55F8bO2fpwlUyFa4AFPJQa,105029,study,Nostalgia,approximate feature/style rule; see data/README.md
+98,06K21lIuMVgM5U8DpJTdOK,105034,study,r u kiddin me?,approximate feature/style rule; see data/README.md
+99,4fWFGd70ErhNWIr3B1caod,105039,study,wandsworth park,approximate feature/style rule; see data/README.md
+100,2L2aSrua8ZBRMogFhF6I1Q,105002,study,Elastic,approximate feature/style rule; see data/README.md

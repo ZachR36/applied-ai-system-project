@@ -153,3 +153,35 @@ def test_reliability_engine_returns_formatted_log():
     assert isinstance(log, str)
     assert len(log) > 0
     assert "Match Rate" in log or "Confidence" in log or "Final" in log
+
+
+def test_retry_applies_weights_and_improves_energy_compliance():
+    from math import isclose
+    from src.recommender import score_song
+    songs = [
+        Song(1, "High-energy pop", "A", "pop", "happy", .9, 120, .8, .6, .2),
+        Song(2, "Low-energy jazz", "B", "jazz", "happy", .4, 80, .8, .6, .2),
+    ]
+    request = "happy pop but tired"
+    engine = ReliabilityEngine(songs)
+    baseline = engine.process_user_request(request, k=1, max_iterations=0)
+    assert baseline.recommendations[0][0].id == 1
+    assert baseline.final_match_rate == 0.
+    result = engine.process_user_request(request, k=1)
+    assert result.recommendations[0][0].id == 2
+    assert result.final_match_rate == 1.
+    assert 1 <= len(result.optimization_steps) <= 3
+    assert result.best_attempt_used is False
+    applied = result.optimization_steps[-1]['weights']
+    expected, reasons = score_song(engine.parser.parse(request), songs[1], weights=applied)
+    assert isclose(result.recommendations[0][1], expected)
+    assert result.recommendations[0][2] == reasons
+
+
+def test_passing_validation_does_not_adjust_weights():
+    from src.recommender import recommend_songs
+    engine = ReliabilityEngine(make_test_songs())
+    request = "happy pop"
+    result = engine.process_user_request(request, k=1)
+    assert result.optimization_steps == []
+    assert result.recommendations == recommend_songs(engine.parser.parse(request), engine.songs, k=1)

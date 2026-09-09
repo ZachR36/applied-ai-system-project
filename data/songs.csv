@@ -1,22 +1,101 @@
 id,title,artist,genre,mood,energy,tempo_bpm,valence,danceability,acousticness
-1,Sunrise City,Neon Echo,pop,happy,0.82,118,0.84,0.79,0.18
-2,Midnight Coding,LoRoom,lofi,chill,0.42,78,0.56,0.62,0.71
-3,Storm Runner,Voltline,rock,intense,0.91,152,0.48,0.66,0.10
-4,Library Rain,Paper Lanterns,lofi,chill,0.35,72,0.60,0.58,0.86
-5,Gym Hero,Max Pulse,pop,intense,0.93,132,0.77,0.88,0.05
-6,Spacewalk Thoughts,Orbit Bloom,ambient,chill,0.28,60,0.65,0.41,0.92
-7,Coffee Shop Stories,Slow Stereo,jazz,relaxed,0.37,90,0.71,0.54,0.89
-8,Night Drive Loop,Neon Echo,synthwave,moody,0.75,110,0.49,0.73,0.22
-9,Focus Flow,LoRoom,lofi,focused,0.40,80,0.59,0.60,0.78
-10,Rooftop Lights,Indigo Parade,indie pop,happy,0.76,124,0.81,0.82,0.35
-11,Midnight Flow,Urban Beats,hip-hop,aggressive,0.85,96,0.42,0.72,0.15
-12,Sunset Dreams,Country Roads,country,melancholic,0.58,102,0.38,0.64,0.78
-13,Electric Pulse,Neon Synth,electronic,energetic,0.92,140,0.78,0.88,0.08
-14,Moonlight Sonata,Classical Hearts,classical,sad,0.25,70,0.35,0.22,0.95
-15,Bass Drop,DJ Wavelength,electronic,playful,0.87,130,0.72,0.91,0.12
-16,Rainy Day Blues,Slow Jazz Trio,jazz,melancholic,0.42,88,0.48,0.51,0.85
-17,Heavy Metal Thunder,Iron Fist,metal,aggressive,0.96,160,0.32,0.58,0.05
-18,Whisper Soft,Piano Dreams,classical,relaxed,0.28,65,0.64,0.18,0.92
-19,Gentle Smile,Soft Vibes,indie pop,happy,0.35,85,0.79,0.65,0.72
-20,Happy Memories,Warm Tones,pop,happy,0.38,92,0.82,0.70,0.68
-21,Sunday Morning,Acoustic Joy,acoustic,cheerful,0.32,78,0.85,0.58,0.88
+1,As It Was,Harry Styles,pop,happy,0.731,173.93,0.662,0.52,0.342
+2,Glimpse of Us,Joji,pop,melancholic,0.317,169.914,0.268,0.44,0.891
+3,Left and Right (Feat. Jung Kook of BTS),Charlie Puth;Jung Kook;BTS,pop,happy,0.592,101.058,0.719,0.881,0.619
+4,Blinding Lights,The Weeknd,pop,energetic,0.73,171.005,0.334,0.514,0.00146
+5,Dandelions,Ruth B.,pop,chill,0.692,116.959,0.454,0.609,0.0157
+6,Until I Found You,Stephen Sanchez,pop,melancholic,0.508,101.358,0.227,0.539,0.727
+7,lovely (with Khalid),Billie Eilish;Khalid,pop,melancholic,0.296,115.284,0.12,0.351,0.934
+8,Night Changes,One Direction,pop,chill,0.52,120.001,0.37,0.672,0.859
+9,Bad Habits,Ed Sheeran,pop,energetic,0.893,126.011,0.537,0.807,0.0451
+10,good 4 u,Olivia Rodrigo,pop,aggressive,0.664,166.928,0.688,0.563,0.335
+11,I Wanna Be Yours,Arctic Monkeys,rock,chill,0.417,67.528,0.479,0.464,0.136
+12,Sweater Weather,The Neighbourhood,rock,energetic,0.807,124.053,0.398,0.612,0.0495
+13,Bones,Imagine Dragons,rock,energetic,0.742,114.071,0.571,0.773,0.0206
+14,Beggin',Måneskin,rock,energetic,0.8,134.002,0.589,0.714,0.127
+15,Everlong,Foo Fighters,rock,energetic,0.881,158.066,0.364,0.413,5.99e-05
+16,Sweet Child O' Mine,Guns N' Roses,rock,energetic,0.91,125.116,0.629,0.454,0.0866
+17,Smells Like Teen Spirit,Nirvana,rock,aggressive,0.912,116.761,0.72,0.502,2.55e-05
+18,Californication,Red Hot Chili Peppers,rock,energetic,0.767,96.483,0.328,0.592,0.0021
+19,Creep,Radiohead,rock,melancholic,0.43,91.844,0.104,0.515,0.0097
+20,Bohemian Rhapsody - Remastered 2011,Queen,rock,melancholic,0.404,71.105,0.224,0.414,0.271
+21,Master Of Puppets,Metallica,metal,aggressive,0.836,105.173,0.56,0.543,0.000647
+22,Chop Suey!,System Of A Down,metal,aggressive,0.934,127.066,0.287,0.417,0.000278
+23,Duality,Slipknot,metal,aggressive,0.982,143.772,0.194,0.354,0.000237
+24,Crazy Train,Ozzy Osbourne,metal,aggressive,0.913,137.688,0.521,0.454,0.408
+25,Change (In the House of Flies),Deftones,metal,aggressive,0.853,141.581,0.179,0.269,0.000249
+26,Deutschland,Rammstein,metal,aggressive,0.895,120.117,0.237,0.521,5.54e-05
+27,Hail to the King,Avenged Sevenfold,metal,aggressive,0.916,118.004,0.683,0.58,0.000297
+28,The Trooper - 2015 Remaster,Iron Maiden,metal,aggressive,0.908,159.756,0.669,0.285,0.0318
+29,Paranoid (2009 - Remaster),Black Sabbath,metal,aggressive,0.685,162.78,0.328,0.423,6.28e-05
+30,Symphony Of Destruction,Megadeth,metal,aggressive,0.891,139.903,0.51,0.61,0.000805
+31,Don't Know Why,Norah Jones,jazz,chill,0.219,88.609,0.635,0.745,0.851
+32,What A Wonderful World,Louis Armstrong,jazz,happy,0.258,108.174,0.192,0.399,0.792
+33,Feeling Good,Nina Simone,jazz,happy,0.326,79.206,0.546,0.399,0.864
+34,L-O-V-E,Nat King Cole,jazz,happy,0.373,78.231,0.663,0.425,0.686
+35,The Girl From Ipanema,Stan Getz;João Gilberto;Astrud Gilberto,jazz,chill,0.194,129.863,0.443,0.664,0.909
+36,Solitude,Billie Holiday,jazz,melancholic,0.15,98.66,0.19,0.462,0.984
+37,I Fall In Love Too Easily,Chet Baker,jazz,melancholic,0.0657,128.607,0.292,0.532,0.94
+38,Take Five,The Dave Brubeck Quartet,jazz,chill,0.26,174.322,0.598,0.454,0.539
+39,In A Sentimental Mood,Duke Ellington;John Coltrane,jazz,melancholic,0.305,108.229,0.282,0.464,0.936
+40,Blue in Green (feat. John Coltrane & Bill Evans),Miles Davis;John Coltrane;Bill Evans,jazz,melancholic,0.0162,110.479,0.154,0.421,0.808
+41,Gymnopédie No. 1,Erik Satie;Philippe Entremont,classical,relaxed,0.0127,72.776,0.356,0.468,0.994
+42,"The Carnival of the Animals, R. 125: XIII. The Swan (Arr. for Cello and Piano)",Camille Saint-Saëns;Yo-Yo Ma;Kathryn Stott,classical,relaxed,0.0161,128.143,0.0573,0.169,0.986
+43,"Sonata No. 14 ""Moonlight"" in C-Sharp Minor"", Op. 27 No. 2: I. Adagio sostenuto",Ludwig van Beethoven;Paul Lewis,classical,relaxed,0.00527,170.612,0.151,0.184,0.995
+44,"Cello Suite No. 1 in G Major, BWV 1007: I. Prélude",Johann Sebastian Bach;Yo-Yo Ma,classical,relaxed,0.157,73.289,0.304,0.275,0.89
+45,"Clair de Lune, L. 32",Claude Debussy;Martin Jones,classical,relaxed,0.00532,65.832,0.0397,0.335,0.994
+46,"Nocturne No. 2 in E-Flat Major, Op. 9 No. 2",Frédéric Chopin;Daniel Barenboim,classical,relaxed,0.00919,79.314,0.0929,0.442,0.984
+47,"Tchaikovsky: Swan Lake, Op. 20, Act II: No. 10, Scene. Moderato",Pyotr Ilyich Tchaikovsky;André Previn;London Symphony Orchestra,classical,relaxed,0.164,58.303,0.071,0.136,0.911
+48,"Vivaldi Variation (Arr. for Piano from Concerto for Strings in G Minor, RV 156)",Antonio Vivaldi;Florian Christl,classical,relaxed,0.258,78.809,0.0972,0.429,0.957
+49,"Piano Concerto No. 21 in C Major, K. 467: II. Andante",Wolfgang Amadeus Mozart;London Mozart Players;Howard Shelley,classical,relaxed,0.0311,179.223,0.063,0.137,0.982
+50,Experience,Ludovico Einaudi;Daniel Hope;I Virtuosi Italiani,classical,focused,0.449,92.468,0.036,0.447,0.934
+51,I Won't Give Up,Jason Mraz,acoustic,chill,0.303,133.406,0.139,0.483,0.694
+52,Can't Help Falling In Love,Kina Grannis,acoustic,chill,0.0596,181.74,0.143,0.266,0.905
+53,A Drop in the Ocean,Ron Pope,acoustic,chill,0.393,73.139,0.564,0.447,0.785
+54,Society,Eddie Vedder,acoustic,melancholic,0.327,161.858,0.298,0.561,0.902
+55,Gravity,Sara Bareilles,acoustic,melancholic,0.275,168.964,0.231,0.27,0.834
+56,I Was Born To Love You,Ray LaMontagne;Sierra Ferrell,acoustic,happy,0.271,78.036,0.21,0.65,0.794
+57,Collide - Acoustic Version,Howie Day,acoustic,chill,0.253,90.186,0.294,0.582,0.827
+58,"Portland, Maine",Donovan Woods,acoustic,melancholic,0.349,80.071,0.156,0.606,0.764
+59,World Spins Madly On,The Weepies;Deb Talan;Steve Tannen,acoustic,chill,0.311,107.612,0.4,0.502,0.617
+60,Colors,Amos Lee,acoustic,chill,0.168,128.615,0.29,0.681,0.793
+61,Something in the Orange,Zach Bryan,country,melancholic,0.192,175.212,0.148,0.369,0.555
+62,You Proof,Morgan Wallen,country,happy,0.85,119.706,0.644,0.731,0.252
+63,Rock and A Hard Place,Bailey Zimmerman,country,chill,0.568,121.991,0.394,0.582,0.577
+64,She Had Me At Heads Carolina,Cole Swindell,country,happy,0.912,134.944,0.722,0.607,0.124
+65,The Kind of Love We Make,Luke Combs,country,energetic,0.745,102.025,0.464,0.608,0.0226
+66,Tennessee Whiskey,Chris Stapleton,country,chill,0.37,48.718,0.512,0.392,0.205
+67,Buy Dirt,Jordan Davis;Luke Bryan,country,chill,0.559,177.945,0.437,0.586,0.639
+68,9 to 5,Dolly Parton,country,happy,0.783,105.39,0.813,0.554,0.416
+69,Hurt,Johnny Cash,country,melancholic,0.392,90.379,0.163,0.534,0.649
+70,Rainbow,Kacey Musgraves,country,chill,0.197,130.367,0.349,0.581,0.88
+71,Glue,Bicep,electronic,energetic,0.798,129.983,0.42,0.853,0.0158
+72,Nightcall,Kavinsky,electronic,energetic,0.874,91.038,0.361,0.532,0.00842
+73,Teardrop,Massive Attack,electronic,melancholic,0.419,76.997,0.216,0.615,0.0173
+74,Glory Box,Portishead,electronic,melancholic,0.434,119.695,0.207,0.51,0.177
+75,The Look,Metronomy,electronic,chill,0.535,84.947,0.504,0.638,0.623
+76,Let Me Love You,DJ Snake;Justin Bieber,electronic,energetic,0.716,99.988,0.163,0.649,0.0863
+77,Solo Dance,Martin Jensen,electronic,energetic,0.846,114.955,0.403,0.746,0.0485
+78,UCLA,RL Grime;24hrs,electronic,energetic,0.879,140.137,0.334,0.536,0.0742
+79,Don’t Let Me Let Go (with ILLENIUM & EVAN GIIA),Dillon Francis;ILLENIUM;EVAN GIIA,electronic,energetic,0.715,145.979,0.397,0.488,0.0367
+80,Cooler Than Me,Lucky Luke,electronic,energetic,0.716,128.022,0.296,0.889,0.0595
+81,Super Freaky Girl,Nicki Minaj,hip-hop,playful,0.891,133.01,0.912,0.95,0.0645
+82,Jimmy Cooks (feat. 21 Savage),Drake;21 Savage,hip-hop,intense,0.673,165.921,0.366,0.529,0.000307
+83,BILLIE EILISH.,Armani White,hip-hop,playful,0.509,100.007,0.765,0.9,0.115
+84,Gangsta's Paradise,Coolio;L.V.,hip-hop,intense,0.514,79.975,0.386,0.647,0.0655
+85,WAIT FOR U (feat. Drake & Tems),Future;Drake;Tems,hip-hop,melancholic,0.642,83.389,0.339,0.463,0.314
+86,Without Me,Eminem,hip-hop,playful,0.669,112.238,0.662,0.908,0.00286
+87,No Role Modelz,J. Cole,hip-hop,intense,0.521,100.028,0.494,0.69,0.324
+88,HUMBLE.,Kendrick Lamar,hip-hop,intense,0.621,150.011,0.421,0.908,0.000282
+89,Hit 'Em Up - Single Version,2Pac;Outlawz,hip-hop,aggressive,0.844,95.19,0.586,0.916,0.0394
+90,N.Y. State of Mind,Nas,hip-hop,intense,0.91,84.099,0.887,0.665,0.0394
+91,Distractions,Timothy Infinite,study,focused,0.41,86.818,0.284,0.476,0.844
+92,Shoreditch,Clint Is Quinn,study,focused,0.105,79.986,0.396,0.636,0.923
+93,Neon Tapestries,Dusty Decks,study,focused,0.155,162.269,0.44,0.657,0.472
+94,After Surf Sandwich,Breakfast For Brunch,study,focused,0.357,150.011,0.324,0.63,0.783
+95,Chapman,Olivier Abeille,study,focused,0.295,68.961,0.279,0.586,0.86
+96,Youth,Ensidya,study,focused,0.133,78.001,0.262,0.675,0.513
+97,Views from Yamashita Park,Nathan Kawanishi,study,focused,0.253,110.036,0.382,0.706,0.941
+98,r u kiddin me?,Wibke Komi,study,focused,0.458,174.073,0.215,0.592,0.284
+99,wandsworth park,flowtide,study,focused,0.378,80.089,0.241,0.712,0.93
+100,Elastic,4to28,study,focused,0.41,112.509,0.587,0.736,0.0361

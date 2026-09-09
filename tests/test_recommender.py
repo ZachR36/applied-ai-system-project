@@ -59,3 +59,33 @@ def test_score_song_returns_tuple():
     assert isinstance(reasons, list)
     assert len(reasons) > 0
     assert 0.0 <= score <= 1.0
+
+
+def test_default_weights_preserve_original_score():
+    from math import isclose
+    user = UserProfile("pop", "happy", 0.8, False)
+    song = make_test_songs()[0]
+    score, reasons = score_song(user, song)
+    assert isclose(score, 0.975)
+    explicit = {"genre": .4, "mood": .3, "energy": .15, "acoustic": .1, "valence": .05}
+    assert score_song(user, song, weights=explicit) == (score, reasons)
+
+
+def test_custom_weights_change_ranking_and_explanations():
+    from math import isclose
+    import re
+    user = UserProfile("pop", "happy", 0.4, False)
+    songs = make_test_songs()
+    weights = {"genre": 0., "mood": 0., "energy": 1., "acoustic": 0., "valence": 0.}
+    original_weights = weights.copy()
+    assert recommend_songs(user, songs, k=1)[0][0].id == 1
+    result = recommend_songs(user, songs, k=1, weights=weights)
+    song, score, reasons = result[0]
+    assert song.id == 2
+    assert isclose(score, 1.0)
+    contributions = [float(re.search(r"\(\+([0-9.]+)\)", reason).group(1)) for reason in reasons]
+    assert contributions == [0., 0., 1., 0., 0.]
+    assert isclose(sum(contributions), score)
+    assert weights == original_weights
+    # A custom call must not change subsequent default scoring.
+    assert recommend_songs(user, songs, k=1)[0][0].id == 1
